@@ -12,12 +12,39 @@ class Game {
         this.gameEnded = false;
         this.timerSeconds = 180; // 3 minutes in seconds
         this.lastDirection = null;
-        this.moveTimer = 0;
         this.moveSpeed = 20; // Higher number = slower movement
         this.isPaused = false;
         this.isPromptShowing = false;
         this.isRestartPrompt = false;
         this.targetPositionReached = false; // Track if position was reached
+        this.commandExecuted = false; // Reset command flag
+        this.flightFallIn = false; // Track if FALL IN command was issued
+        
+        /**
+         * make a state manager for the game:
+         * attention
+         * parade rest
+         * right face
+         * present arms
+         * order amrs
+         * left face
+         * about face
+         * left step
+         * halt
+         * right step
+         * halt
+         * cover
+         * mark time
+         * half step
+         * forward march
+         * column left
+         * to the rear
+         * right flank
+         * column right
+         * change step (imaginary)
+         * left flank
+         * halt
+         */
         
         // Setup canvas
         this.canvas = document.getElementById('game-canvas');
@@ -100,13 +127,6 @@ class Game {
                 
                 this.frameCount++;
             }
-
-            // Control movement speed with timer
-            this.moveTimer++;
-            if (this.moveTimer >= this.moveSpeed) {
-                // Removed automatic movement when game is started
-                this.moveTimer = 0;
-            }
         }
         
         this.draw();
@@ -134,8 +154,10 @@ class Game {
             cadet.draw(this.ctx, this.CELL_SIZE);
         }
         
-        // Draw target position (green circle)
-        this.targetPosition.draw(this.ctx, this.CELL_SIZE);
+        // Draw target position (green circle) only if not yet reached or FALL IN not yet issued
+        if (!(this.targetPositionReached && this.commandExecuted)) {
+            this.targetPosition.draw(this.ctx, this.CELL_SIZE);
+        }
         
         // Draw commander last (on top)
         this.commander.draw(this.ctx, this.CELL_SIZE);
@@ -226,14 +248,14 @@ class Game {
     handleWallCollision() {
         this.isPaused = true;
         this.isRestartPrompt = true;
-        this.showMessage("You hit a boundary! Would you like to restart the drill? Press SPACE or click Continue to restart, or ESC to end drill.");
+        this.showMessage("You hit a boundary! Would you like to restart the drill? Press F or click Continue to restart, or ESC to end drill.");
     }
     
     handleTargetPositionReached() {
         // Only show message once when position is reached
         if (!this.targetPositionReached) {
             this.targetPositionReached = true;
-            this.showMessage("You've reached the correct position! Now conduct your drill from here.");
+            this.showMessage("You've reached the correct position! Now conduct your drill from here. Press 'Z' to issue the FALL IN command.");
         }
     }
     
@@ -244,12 +266,16 @@ class Game {
         this.isPaused = false;
         this.isRestartPrompt = false;
         this.targetPositionReached = false; // Reset target position flag
+        this.commandExecuted = false; // Reset command flag
+        this.flightFallIn = false; // Reset FALL IN flag
         this.timerSeconds = 180; // Reset timer to 3 minutes
         this.frameCount = 0;
-        this.moveTimer = 0;
         
         // Reset commander position
         this.commander = new Commander(6, 5, "right");
+        
+        // Reset cadet formation
+        this.flightOfCadets = this.createCadetFormation();
         
         // Update display
         this.scoreDisplay.textContent = this.formatTime(this.timerSeconds);
@@ -289,6 +315,7 @@ class Game {
             this.showMessage("Execute your drill freely. You have 3 minutes to complete the exercise. Move to the green circle to take your position, then conduct the drill. Use arrow keys to move.");
         } else if (!this.gameEnded) {
             // Still in progress
+            //TODO end the drill evaluation if user confirms it
             this.showMessage(`Continue the drill. You have ${this.formatTime(this.timerSeconds)} remaining. Remember to move to the green circle position.`);
         }
     }
@@ -316,7 +343,7 @@ class Game {
     
     handleKeyDown(e) {
         // If a prompt is showing, check for spacebar to continue
-        if (this.isPromptShowing && e.key === ' ') {
+        if (this.isPromptShowing && (e.key === 'F' || e.key === 'f')) {
             this.closeMessage();
             return;
         }
@@ -358,6 +385,10 @@ class Game {
             case 'F':
                 this.interactWithEvaluator();
                 break;
+            case 'z':
+            case 'Z':
+                this.issueFallInCommand();
+                break;
         }
         
         // Redraw if game hasn't started
@@ -379,6 +410,29 @@ class Game {
             case "right":
                 this.commander.direction = "left";
                 break;
+        }
+    }
+    
+    issueFallInCommand() {
+        if (this.flightFallIn) return;
+        
+        // Check if commander is at the target position
+        const head = this.commander.segments[0];
+        if (head.x === this.targetPosition.x && head.y === this.targetPosition.y) {
+            // Turn all cadets green
+            for (let cadet of this.flightOfCadets) {
+                cadet.falledIn = true;
+            }
+            
+            // Mark the command as executed
+            this.commandExecuted = true;
+            this.flightFallIn = true;
+            
+            // Show success message
+            this.showMessage("FALL IN command issued. Your flight is now in formation.");
+        } else {
+            // Show error message if not at target position
+            this.showMessage("You must be at the marked position (green circle) to issue the FALL IN command.");
         }
     }
     

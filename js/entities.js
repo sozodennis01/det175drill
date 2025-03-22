@@ -92,6 +92,7 @@ class Cadet {
         this.y = y;
         this.isGuidon = isGuidon;
         this.direction = "left"; // All cadets initially face left
+        this.falledIn = false; // Track if cadet has filled in after FALL IN command
     }
     
     draw(ctx, cellSize) {
@@ -100,8 +101,14 @@ class Cadet {
         const centerX = x + cellSize / 2;
         const centerY = y + cellSize / 2;
         
-        // Set color based on cadet type
-        ctx.fillStyle = this.isGuidon ? "#003366" : "#005599"; // Darker blue for guidon bearer
+        // Set color based on cadet type and filled in status
+        if (this.falledIn) {
+            // Green color when filled in after FALL IN command
+            ctx.fillStyle = this.isGuidon ? "#006633" : "#00cc66"; // Darker green for guidon bearer
+        } else {
+            // Original blue color
+            ctx.fillStyle = this.isGuidon ? "#003366" : "#005599"; // Darker blue for guidon bearer
+        }
         
         ctx.save();
         ctx.translate(centerX, centerY);
@@ -120,10 +127,10 @@ class Cadet {
         
         // If this is the guidon bearer, add the flag on top
         if (this.isGuidon) {
-            // Draw guidon (flag)
-            ctx.fillStyle = "#FF0000"; // Red for guidon
+            // Draw guidon (flag) with higher contrast
             
             // Flag pole
+            ctx.fillStyle = "#333333"; // Dark gray pole
             ctx.fillRect(
                 -1,
                 -cellSize / 2 + 5,
@@ -131,14 +138,31 @@ class Cadet {
                 cellSize - 10
             );
             
-            // Flag
+            // Flag background with outline
             ctx.beginPath();
             ctx.moveTo(0, -cellSize / 2 + 5);
-            ctx.lineTo(10, -cellSize / 2 + 8);
-            ctx.lineTo(10, -cellSize / 2 + 16);
+            ctx.lineTo(12, -cellSize / 2 + 8);
+            ctx.lineTo(12, -cellSize / 2 + 16);
             ctx.lineTo(0, -cellSize / 2 + 18);
             ctx.closePath();
+            
+            // Fill with slightly more saturated colors
+            if (this.falledIn) {
+                ctx.fillStyle = "#0055FF"; // Brighter blue when filled in
+            } else {
+                ctx.fillStyle = "#FF0000"; // Standard red
+            }
             ctx.fill();
+            
+            // Add contrasting outline
+            ctx.lineWidth = 1.5;
+            ctx.strokeStyle = "#FFFFFF"; // White outline for contrast
+            ctx.stroke();
+            
+            // Add second outline in black for extra contrast
+            ctx.lineWidth = 0.5;
+            ctx.strokeStyle = "#000000";
+            ctx.stroke();
         }
         
         ctx.restore();
