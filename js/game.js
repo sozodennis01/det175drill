@@ -17,6 +17,7 @@ class Game {
         this.isPromptShowing = false;
         this.isRestartPrompt = false;
         this.targetPositionReached = false; // Track if position was reached
+        this.frameCount = 0; // Track frames for animation timing
         
         // Formation state
         this.flightFormation = "none"; // Will be "line" or "column" after fallIn
@@ -66,7 +67,8 @@ class Game {
             "leftStep": { from: ["Halted_At_Attention"], to: "Marching_Forward", then: "Halted_At_Attention" },
             "rightStep": { from: ["Halted_At_Attention"], to: "Marching_Forward", then: "Halted_At_Attention" },
             "halfStep": { from: ["Marching_Forward"], to: "Marching_Forward" },
-            "cover": { from: ["Halted_At_Attention"], to: "Halted_At_Attention" }
+            "cover": { from: ["Halted_At_Attention"], to: "Halted_At_Attention" },
+            "doubletime": { from: ["Marching_Forward"], to: "Marching_Forward" }
         };
         
         // Command state management
@@ -378,7 +380,7 @@ class Game {
         
         // Check for wall collisions if the game has started
         if (this.gameStarted) {
-            if (newX < 0 || newX >= this.GRID_COLS || newY < 0 || newY >= this.GRID_ROWS) {
+            if (newX < 0 || newX > this.GRID_COLS || newY < 0 || newY > this.GRID_ROWS) {
                 this.handleWallCollision();
                 return; // Don't move
             }
@@ -435,6 +437,7 @@ class Game {
         this.isPaused = false;
         this.isRestartPrompt = false;
         this.targetPositionReached = false; // Reset target position flag
+        this.frameCount = 0; // Reset frame counter
         
         // Reset command state
         this.currentCommand = "none";
@@ -450,7 +453,6 @@ class Game {
         this.isDoubleTime = false;
         
         this.timerSeconds = 180; // Reset timer to 3 minutes
-        this.frameCount = 0;
         
         // Reset commander position
         this.commander = new Commander(6, 5, "right");
@@ -688,6 +690,7 @@ class Game {
                 break;
             case "halt":
                 baseFeedback = "Flight, HALT!";
+                // Clear any boundary message when halting
                 break;
             case "columnLeft":
                 baseFeedback = "Column Left, MARCH!";
@@ -700,6 +703,9 @@ class Game {
                 break;
             case "leftFlank":
                 baseFeedback = "Left Flank, MARCH!";
+                break;
+            case "doubletime":
+                baseFeedback = this.isDoubleTime ? "DOUBLE TIME, MARCH!" : "Quick Time, MARCH!";
                 break;
             // Add feedback for other commands
             default:
@@ -833,6 +839,13 @@ class Game {
                     this.issueCommand("leftFlank");
                 }
                 break;
+            case 'd':
+            case 'D':
+                // Double time command
+                this.issueCommand("doubletime");
+                // Toggle double time state
+                this.isDoubleTime = !this.isDoubleTime;
+                break;
             // Add more command keys as needed
         }
         
@@ -897,14 +910,75 @@ class Game {
         // Different animation behavior based on current state
         switch (this.flightState) {
             case "Marching_Forward":
-                // Marching animation potentially involves movement
-                if (this.currentCommand === "forwardMarch" || 
-                    this.currentCommand === "columnLeft" || 
-                    this.currentCommand === "columnRight" ||
-                    this.currentCommand === "leftFlank" ||
-                    this.currentCommand === "rightFlank") {
-                    // In a full implementation, you would move the cadet positions here
-                    // For now, we'll just let the cadets animate in place
+                // Only move cadets every few frames to control march speed
+                if (this.frameCount % this.moveSpeed === 0) {
+                    // Move cadets forward based on current command
+                    if (this.currentCommand === "forwardMarch" || 
+                        this.currentCommand === "columnLeft" || 
+                        this.currentCommand === "columnRight" ||
+                        this.currentCommand === "leftFlank" ||
+                        this.currentCommand === "rightFlank") {
+                        
+                        // Get movement direction based on guidon bearer's direction
+                        // (guidon bearer is the leader of the formation)
+                        const guidon = this.flightOfCadets.find(cadet => cadet.isGuidon);
+                        if (!guidon) return;
+                        
+                        // Calculate movement delta
+                        let dx = 0, dy = 0;
+                        switch (guidon.direction) {
+                            case "left":
+                                dx = -1;
+                                break;
+                            case "right":
+                                dx = 1;
+                                break;
+                            case "up":
+                                dy = -1;
+                                break;
+                            case "down":
+                                dy = 1;
+                                break;
+                        }
+                        
+                        // Apply double time speed if enabled
+                        if (this.isDoubleTime) {
+                            dx *= 2;
+                            dy *= 2;
+                        }
+                        
+                        // Check if any cadet would hit a boundary
+                        let hitBoundary = false;
+                        for (let cadet of this.flightOfCadets) {
+                            const newX = cadet.x + dx;
+                            const newY = cadet.y + dy;
+                            
+                            // Check for wall collisions
+                            if (newX < 0 || newX > this.GRID_COLS || newY < 0 || newY > this.GRID_ROWS) {
+                                hitBoundary = true;
+                                break;
+                            }
+                            
+                            // Check for collision with evaluator or commander
+                            if ((newX === this.evaluator.x && newY === this.evaluator.y) ||
+                                (newX === this.commander.segments[0].x && newY === this.commander.segments[0].y)) {
+                                hitBoundary = true;
+                                break;
+                            }
+                        }
+                        
+                        // Move all cadets if no boundary collision
+                        if (!hitBoundary) {
+                            for (let cadet of this.flightOfCadets) {
+                                cadet.x += dx;
+                                cadet.y += dy;
+                            }
+                        } else {
+                            // Provide feedback that the flight has hit a boundary
+                            this.commandFeedback = `<span style="color:#ff0000">The flight has reached a boundary and cannot move further.</span>`;
+                            this.updateCommandDisplay();
+                        }
+                    }
                 }
                 break;
                 
@@ -923,10 +997,12 @@ class Game {
                 
             case "Column_Movement":
                 // Animate column movement
+                // This state is temporary and transitions to Marching_Forward
                 break;
                 
             case "Flanking":
                 // Animate flanking movement
+                // This state is temporary and transitions to Marching_Forward
                 break;
         }
     }
