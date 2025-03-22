@@ -139,4 +139,33 @@ class Cadet {
             );
         }
     }
+}
+
+/**
+ * Entity class for the Target Position (green circle indicating destination)
+ */
+class TargetPosition {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+    }
+    
+    draw(ctx, cellSize) {
+        const x = this.x * cellSize;
+        const y = this.y * cellSize;
+        const centerX = x + cellSize / 2;
+        const centerY = y + cellSize / 2;
+        const radius = cellSize / 3;
+        
+        // Draw green circle
+        ctx.fillStyle = "rgba(0, 200, 0, 0.5)"; // Semi-transparent green
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Draw border
+        ctx.strokeStyle = "#00AA00";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+    }
 } 

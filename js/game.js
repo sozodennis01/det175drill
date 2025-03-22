@@ -17,6 +17,7 @@ class Game {
         this.isPaused = false;
         this.isPromptShowing = false;
         this.isRestartPrompt = false;
+        this.targetPositionReached = false; // Track if position was reached
         
         // Setup canvas
         this.canvas = document.getElementById('game-canvas');
@@ -33,6 +34,13 @@ class Game {
         this.commander = new Commander(6, 5, "right");
         this.evaluator = new Evaluator(0, 0);
         this.flightOfCadets = this.createCadetFormation();
+        
+        // Create target position (green circle)
+        // Two spaces from left side of flight, one row from bottom of grid
+        const leftmostFlightCol = this.GRID_COLS - 2; // Leftmost column of flight
+        const targetX = leftmostFlightCol - 2; // Two spaces left of flight
+        const targetY = this.GRID_ROWS - 2; // Two row from bottom
+        this.targetPosition = new TargetPosition(targetX, targetY);
         
         // Bind methods
         this.handleKeyDown = this.handleKeyDown.bind(this);
@@ -96,7 +104,7 @@ class Game {
             // Control movement speed with timer
             this.moveTimer++;
             if (this.moveTimer >= this.moveSpeed) {
-                this.moveCommander();
+                // Removed automatic movement when game is started
                 this.moveTimer = 0;
             }
         }
@@ -125,6 +133,9 @@ class Game {
         for (let cadet of this.flightOfCadets) {
             cadet.draw(this.ctx, this.CELL_SIZE);
         }
+        
+        // Draw target position (green circle)
+        this.targetPosition.draw(this.ctx, this.CELL_SIZE);
         
         // Draw commander last (on top)
         this.commander.draw(this.ctx, this.CELL_SIZE);
@@ -205,6 +216,11 @@ class Game {
         
         // Save this direction
         this.lastDirection = this.commander.direction;
+        
+        // Check if commander is at target position and give feedback if game has started
+        if (this.gameStarted && newX === this.targetPosition.x && newY === this.targetPosition.y) {
+            this.handleTargetPositionReached();
+        }
     }
     
     handleWallCollision() {
@@ -213,12 +229,21 @@ class Game {
         this.showMessage("You hit a boundary! Would you like to restart the drill? Press SPACE or click Continue to restart, or ESC to end drill.");
     }
     
+    handleTargetPositionReached() {
+        // Only show message once when position is reached
+        if (!this.targetPositionReached) {
+            this.targetPositionReached = true;
+            this.showMessage("You've reached the correct position! Now conduct your drill from here.");
+        }
+    }
+    
     restartGame() {
         // Reset game state
         this.gameStarted = false;
         this.gameEnded = false;
         this.isPaused = false;
         this.isRestartPrompt = false;
+        this.targetPositionReached = false; // Reset target position flag
         this.timerSeconds = 180; // Reset timer to 3 minutes
         this.frameCount = 0;
         this.moveTimer = 0;
@@ -261,10 +286,10 @@ class Game {
             // Start the drill
             this.gameStarted = true;
             this.frameCount = 0; // Initialize frame counter for timing
-            this.showMessage("Execute your drill freely. You have 3 minutes to complete the exercise. Use arrow keys to move.");
+            this.showMessage("Execute your drill freely. You have 3 minutes to complete the exercise. Move to the green circle to take your position, then conduct the drill. Use arrow keys to move.");
         } else if (!this.gameEnded) {
             // Still in progress
-            this.showMessage(`Continue the drill. You have ${this.formatTime(this.timerSeconds)} remaining.`);
+            this.showMessage(`Continue the drill. You have ${this.formatTime(this.timerSeconds)} remaining. Remember to move to the green circle position.`);
         }
     }
     
@@ -312,19 +337,19 @@ class Game {
         switch (e.key) {
             case 'ArrowUp':
                 this.commander.direction = "up";
-                if (!this.gameStarted) this.moveCommander();
+                this.moveCommander(); // Always move on arrow keys regardless of game state
                 break;
             case 'ArrowDown':
                 this.commander.direction = "down";
-                if (!this.gameStarted) this.moveCommander();
+                this.moveCommander(); // Always move on arrow keys regardless of game state
                 break;
             case 'ArrowLeft':
                 this.commander.direction = "left";
-                if (!this.gameStarted) this.moveCommander();
+                this.moveCommander(); // Always move on arrow keys regardless of game state
                 break;
             case 'ArrowRight':
                 this.commander.direction = "right";
-                if (!this.gameStarted) this.moveCommander();
+                this.moveCommander(); // Always move on arrow keys regardless of game state
                 break;
             case ' ': // Spacebar for about face
                 this.performAboutFace();
