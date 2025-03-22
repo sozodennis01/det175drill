@@ -53,8 +53,8 @@ class Game {
         for (let row = 0; row < 4; row++) {
             for (let col = 0; col < 3; col++) {
                 cadets.push(new Cadet(
-                    this.GRID_COLS - 4 + col,
-                    this.GRID_ROWS - 5 + row,
+                    this.GRID_COLS - 2 + col,
+                    this.GRID_ROWS - 4 + row,
                     false
                 ));
             }
@@ -62,8 +62,8 @@ class Game {
         
         // Add guidon bearer
         cadets.push(new Cadet(
-            this.GRID_COLS - 4,  // Aligned with leftmost column
-            this.GRID_ROWS - 6,  // One row ahead of formation
+            this.GRID_COLS - 2,  // Aligned with leftmost column
+            this.GRID_ROWS - 5,  // One row ahead of formation
             true                 // Is guidon bearer
         ));
         
