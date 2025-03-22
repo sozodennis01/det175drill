@@ -21,6 +21,54 @@ class Game {
         // Formation state
         this.flightFormation = "none"; // Will be "line" or "column" after fallIn
         
+        // Flight state machine
+        this.flightState = "none"; // Default state before FALL IN
+        this.isDoubleTime = false; // Track if in double time marching
+        
+        // State transitions definition
+        this.validStateTransitions = {
+            "none": ["Forming"],
+            "Forming": ["Halted_In_Formation", "Halted_At_Rest"],
+            "Halted_At_Attention": ["Halted_At_Rest", "Marching_Forward", "Facing", "Column_Movement", "Flanking", "Halted_In_Formation"],
+            "Halted_At_Rest": ["Halted_At_Attention"],
+            "Marching_Forward": ["Halted_At_Attention", "Marching_Other", "Column_Movement", "Flanking", "Marching_Forward"],
+            "Marching_Other": ["Marching_Forward", "Halted_At_Attention"],
+            "Facing": ["Halted_At_Attention"],
+            "Column_Movement": ["Marching_Forward"],
+            "Flanking": ["Marching_Forward"],
+            "Halted_In_Formation": ["Halted_In_Formation", "Halted_At_Attention", "Halted_At_Rest"]
+        };
+        
+        // Command to state mapping
+        this.commandStateMap = {
+            "fallIn": { from: ["none", "Halted_At_Rest"], to: "Halted_In_Formation" },
+            "attention": { from: ["Halted_At_Rest", "Halted_In_Formation", "Marching_Other"], to: "Halted_At_Attention" },
+            "paradeRest": { from: ["Halted_At_Attention"], to: "Halted_At_Rest" },
+            "rightFace": { from: ["Halted_At_Attention"], to: "Facing", then: "Halted_At_Attention" },
+            "leftFace": { from: ["Halted_At_Attention"], to: "Facing", then: "Halted_At_Attention" },
+            "aboutFace": { from: ["Halted_At_Attention"], to: "Facing", then: "Halted_At_Attention" },
+            "forwardMarch": { from: ["Halted_At_Attention", "Column_Movement"], to: "Marching_Forward" },
+            "halt": { from: ["Marching_Forward", "Marching_Other"], to: "Halted_At_Attention" },
+            "columnLeft": { from: ["Marching_Forward"], to: "Column_Movement", then: "Marching_Forward" },
+            "columnRight": { from: ["Marching_Forward"], to: "Column_Movement", then: "Marching_Forward" },
+            "rightFlank": { from: ["Marching_Forward"], to: "Flanking", then: "Marching_Forward" },
+            "leftFlank": { from: ["Marching_Forward"], to: "Flanking", then: "Marching_Forward" },
+            "routeStep": { from: ["Marching_Forward"], to: "Marching_Other" },
+            "atEaseMarch": { from: ["Marching_Forward"], to: "Marching_Other" },
+            "toTheRear": { from: ["Marching_Forward"], to: "Marching_Forward" },
+            "dismissed": { from: ["Halted_In_Formation"], to: "Halted_At_Rest" },
+            "openRanks": { from: ["Halted_At_Attention"], to: "Halted_In_Formation" },
+            "closeRanks": { from: ["Halted_In_Formation"], to: "Halted_In_Formation" },
+            "markTime": { from: ["Marching_Forward"], to: "Marching_Forward" },
+            "changeStep": { from: ["Marching_Forward"], to: "Marching_Forward" },
+            "presentArms": { from: ["Halted_At_Attention"], to: "Halted_At_Attention" },
+            "orderArms": { from: ["Halted_At_Attention"], to: "Halted_At_Attention" },
+            "leftStep": { from: ["Halted_At_Attention"], to: "Marching_Forward", then: "Halted_At_Attention" },
+            "rightStep": { from: ["Halted_At_Attention"], to: "Marching_Forward", then: "Halted_At_Attention" },
+            "halfStep": { from: ["Marching_Forward"], to: "Marching_Forward" },
+            "cover": { from: ["Halted_At_Attention"], to: "Halted_At_Attention" }
+        };
+        
         // Command state management
         this.currentCommand = "none";
         this.previousCommand = "none";
@@ -117,6 +165,11 @@ class Game {
         formationSection.id = 'formation-status';
         formationSection.innerHTML = '<strong>Formation:</strong> None';
         
+        // Add flight state section
+        const stateSection = document.createElement('div');
+        stateSection.id = 'flight-state';
+        stateSection.innerHTML = '<strong>Flight State:</strong> None';
+        
         const feedbackSection = document.createElement('div');
         feedbackSection.id = 'command-feedback';
         feedbackSection.innerHTML = '';
@@ -125,6 +178,7 @@ class Game {
         this.commandDisplay.appendChild(currentCommandSection);
         this.commandDisplay.appendChild(previousCommandSection);
         this.commandDisplay.appendChild(formationSection);
+        this.commandDisplay.appendChild(stateSection);
         this.commandDisplay.appendChild(feedbackSection);
         
         // Add command display to the document
@@ -165,6 +219,15 @@ class Game {
             formationElement.innerHTML = `<strong>Formation:</strong> ${formationText}`;
         }
         
+        // Update flight state
+        const stateElement = document.getElementById('flight-state');
+        if (stateElement) {
+            // Format state name for display (replace underscores with spaces)
+            const formattedState = this.flightState.replace(/_/g, ' ');
+            const stateColor = this.getStateColor(this.flightState);
+            stateElement.innerHTML = `<strong>Flight State:</strong> <span style="color:${stateColor}">${formattedState}</span>`;
+        }
+        
         // Update feedback if any
         const feedbackElement = document.getElementById('command-feedback');
         if (feedbackElement && this.commandFeedback) {
@@ -192,7 +255,8 @@ class Game {
                 cadets.push(new Cadet(
                     this.GRID_COLS - 2 + col,
                     this.GRID_ROWS - 4 + row,
-                    false
+                    false,
+                    this // Pass reference to game
                 ));
             }
         }
@@ -201,7 +265,8 @@ class Game {
         cadets.push(new Cadet(
             this.GRID_COLS - 2,  // Aligned with leftmost column
             this.GRID_ROWS - 5,  // One row ahead of formation
-            true                 // Is guidon bearer
+            true,                // Is guidon bearer
+            this                 // Pass reference to game
         ));
         
         return cadets;
@@ -228,6 +293,9 @@ class Game {
                 
                 this.frameCount++;
             }
+            
+            // Handle animation updates based on flight state
+            this.updateFlightAnimations();
         }
         
         this.draw();
@@ -377,6 +445,10 @@ class Game {
         // Reset formation state
         this.flightFormation = "none";
         
+        // Reset flight state
+        this.flightState = "none";
+        this.isDoubleTime = false;
+        
         this.timerSeconds = 180; // Reset timer to 3 minutes
         this.frameCount = 0;
         
@@ -483,6 +555,22 @@ class Game {
             this.showMessage("You must issue the FALL IN command before using other commands.");
             return false;
         }
+
+        // State machine validation
+        const stateTransition = this.commandStateMap[command];
+        if (!stateTransition) {
+            this.commandFeedback = `<span style="color:#ff0000">Unknown command: ${command}</span>`;
+            this.updateCommandDisplay();
+            return false;
+        }
+        
+        // Check if the current state allows this command
+        if (!stateTransition.from.includes(this.flightState)) {
+            // Invalid state transition
+            this.commandFeedback = `<span style="color:#ff0000">Invalid command "${command}" for current state: ${this.flightState}</span>`;
+            this.updateCommandDisplay();
+            return false;
+        }
         
         // Store the current command in history before changing it
         if (this.currentCommand !== "none") {
@@ -495,6 +583,9 @@ class Game {
         
         // Update formation state based on command
         this.updateFormationState(command);
+        
+        // Update flight state based on command
+        this.updateFlightState(command);
         
         // Apply command to all cadets
         for (let cadet of this.flightOfCadets) {
@@ -545,6 +636,30 @@ class Game {
         // About face doesn't change formation type, just direction
     }
     
+    // Update flight state based on command
+    updateFlightState(command) {
+        const stateTransition = this.commandStateMap[command];
+        
+        // Update to the immediate state
+        this.flightState = stateTransition.to;
+        
+        // Handle special commands that change marching speed
+        if (command === "forwardMarch") {
+            this.isDoubleTime = false; // Set to normal speed
+        } else if (command === "doubletime") {
+            this.isDoubleTime = true;  // Set to double time
+        }
+        
+        // For commands with temporary states that transition automatically
+        if (stateTransition.then) {
+            // In a real implementation, you would use a timer or animation completion callback
+            setTimeout(() => {
+                this.flightState = stateTransition.then;
+                this.updateCommandDisplay();
+            }, 1000); // Simulate a delay for the movement animation
+        }
+    }
+    
     // Set feedback for the current command
     setCommandFeedback(command) {
         let baseFeedback = "";
@@ -592,19 +707,33 @@ class Game {
                 break;
         }
         
+        // Add state information to feedback
+        let stateInfo = "";
+        if (this.flightState) {
+            stateInfo = `<span style="color:#99ccff">(${this.flightState.replace(/_/g, ' ')})</span>`;
+        }
+        
         // Add formation information when appropriate
         if (command === "fallIn") {
-            this.commandFeedback = `${baseFeedback} <span style="color:#99ccff">(Flight is now in Line Formation)</span>`;
+            this.commandFeedback = `${baseFeedback} <span style="color:#99ccff">(Flight is now in Line Formation - ${this.flightState.replace(/_/g, ' ')})</span>`;
         } else if (command === "rightFace" || command === "leftFace") {
             // Add information about the formation change
             const newFormation = this.flightFormation === "line" ? "Column" : "Line";
-            this.commandFeedback = `${baseFeedback} <span style="color:#99ccff">(Flight is now in ${newFormation} Formation)</span>`;
+            this.commandFeedback = `${baseFeedback} <span style="color:#99ccff">(Flight is now in ${newFormation} Formation - ${this.flightState.replace(/_/g, ' ')})</span>`;
         } else if (command === "columnLeft" || command === "columnRight") {
-            this.commandFeedback = `${baseFeedback} <span style="color:#99ccff">(Maintaining Column Formation)</span>`;
+            this.commandFeedback = `${baseFeedback} <span style="color:#99ccff">(Maintaining Column Formation - ${this.flightState.replace(/_/g, ' ')})</span>`;
         } else if (command === "rightFlank" || command === "leftFlank") {
-            this.commandFeedback = `${baseFeedback} <span style="color:#99ccff">(Maintaining ${this.flightFormation === "line" ? "Line" : "Column"} Formation)</span>`;
+            this.commandFeedback = `${baseFeedback} <span style="color:#99ccff">(Maintaining ${this.flightFormation === "line" ? "Line" : "Column"} Formation - ${this.flightState.replace(/_/g, ' ')})</span>`;
+        } else if (command === "halt") {
+            this.commandFeedback = `${baseFeedback} <span style="color:#99ccff">(Flight is now Halted At Attention)</span>`;
+        } else if (command === "forwardMarch") {
+            this.commandFeedback = `${baseFeedback} <span style="color:#99ccff">(Flight is now Marching Forward)</span>`;
+        } else if (command === "paradeRest") {
+            this.commandFeedback = `${baseFeedback} <span style="color:#99ccff">(Flight is now Halted At Rest)</span>`;
+        } else if (command === "attention") {
+            this.commandFeedback = `${baseFeedback} <span style="color:#99ccff">(Flight is now Halted At Attention)</span>`;
         } else {
-            this.commandFeedback = baseFeedback;
+            this.commandFeedback = `${baseFeedback} ${stateInfo}`;
         }
     }
     
@@ -735,6 +864,71 @@ class Game {
         
         // Message box close button
         this.messageButton.addEventListener('click', this.closeMessage);
+    }
+    
+    // Helper method to get color for different states
+    getStateColor(state) {
+        switch(state) {
+            case "Halted_At_Attention":
+                return "#00cc66"; // Green
+            case "Halted_At_Rest":
+                return "#99ccff"; // Light blue
+            case "Marching_Forward":
+                return "#66ff66"; // Bright green
+            case "Marching_Other":
+                return "#ffaa00"; // Orange
+            case "Facing":
+                return "#ff3333"; // Red
+            case "Column_Movement":
+                return "#ff00ff"; // Magenta
+            case "Flanking":
+                return "#ffff00"; // Yellow
+            case "Forming":
+                return "#00ffff"; // Cyan
+            case "Halted_In_Formation":
+                return "#ff9966"; // Light orange
+            default:
+                return "#ffffff"; // White
+        }
+    }
+    
+    // Update animations based on flight state
+    updateFlightAnimations() {
+        // Different animation behavior based on current state
+        switch (this.flightState) {
+            case "Marching_Forward":
+                // Marching animation potentially involves movement
+                if (this.currentCommand === "forwardMarch" || 
+                    this.currentCommand === "columnLeft" || 
+                    this.currentCommand === "columnRight" ||
+                    this.currentCommand === "leftFlank" ||
+                    this.currentCommand === "rightFlank") {
+                    // In a full implementation, you would move the cadet positions here
+                    // For now, we'll just let the cadets animate in place
+                }
+                break;
+                
+            case "Halted_At_Rest":
+                // No movement, just stance visuals
+                break;
+                
+            case "Halted_At_Attention":
+                // No movement, just stance visuals
+                break;
+                
+            // Handle other states that need animation
+            case "Facing":
+                // Temporarily animate rotation
+                break;
+                
+            case "Column_Movement":
+                // Animate column movement
+                break;
+                
+            case "Flanking":
+                // Animate flanking movement
+                break;
+        }
     }
 }
 

@@ -87,7 +87,7 @@ class Evaluator {
  * Entity class for the Cadets (the formation)
  */
 class Cadet {
-    constructor(x, y, isGuidon = false) {
+    constructor(x, y, isGuidon = false, game = null) {
         this.x = x;
         this.y = y;
         this.isGuidon = isGuidon;
@@ -96,6 +96,9 @@ class Cadet {
         this.commandHistory = []; // Track command history
         this.visualIndicator = null; // For storing color for command
         this.formationType = "none"; // "none", "line", or "column"
+        this.game = game; // Reference to game for state information
+        this.stanceOffset = 0; // For visualization of stance (attention vs rest)
+        this.animationFrame = 0; // For marching animations
     }
     
     // Apply a command to the cadet
@@ -110,6 +113,9 @@ class Cadet {
         
         // Update visual indicator for command feedback
         this.updateVisualIndicator();
+        
+        // Reset stance offset for new command
+        this.resetStanceOffset(command);
         
         // Handle command-specific logic
         switch (command) {
@@ -206,6 +212,22 @@ class Cadet {
         }
     }
     
+    // Reset stance offset based on command
+    resetStanceOffset(command) {
+        switch (command) {
+            case "attention":
+                this.stanceOffset = 0; // At attention
+                break;
+            case "paradeRest":
+                this.stanceOffset = 5; // Feet wider at parade rest
+                break;
+            case "forwardMarch":
+                this.animationFrame = 0; // Reset animation frame for marching
+                break;
+            // Add other commands that affect stance
+        }
+    }
+    
     // Update visual indicator based on current command
     updateVisualIndicator() {
         switch (this.currentCommand) {
@@ -298,6 +320,11 @@ class Cadet {
             case "left":
                 ctx.rotate(-Math.PI / 2);
                 break;
+        }
+        
+        // Apply state-specific visualizations if game reference exists
+        if (this.game) {
+            this.applyStateVisualization(ctx, cellSize);
         }
         
         // Draw cadet
@@ -398,6 +425,43 @@ class Cadet {
         }
         
         ctx.restore();
+    }
+    
+    // Apply state-specific visualizations
+    applyStateVisualization(ctx, cellSize) {
+        if (!this.game) return;
+        
+        const state = this.game.flightState;
+        
+        switch(state) {
+            case "Halted_At_Rest":
+                // Visualize parade rest or at ease - wider stance
+                this.stanceOffset = 5;
+                break;
+            case "Halted_At_Attention":
+                // Regular stance for attention
+                this.stanceOffset = 0;
+                break;
+            case "Marching_Forward":
+                // Animate marching movement
+                this.animationFrame = (this.animationFrame + 0.1) % 4;
+                // Apply oscillating offset for marching animation
+                const marchOffset = Math.sin(this.animationFrame * Math.PI / 2) * 3;
+                ctx.translate(0, marchOffset);
+                break;
+            case "Facing":
+                // Could add rotation animation here
+                break;
+            case "Column_Movement":
+                // Visualize column movement - add slight offset
+                ctx.translate(2, 0);
+                break;
+            case "Flanking":
+                // Visualize flanking - add slight rotation
+                ctx.rotate(Math.PI / 30); // Small rotation to indicate flanking movement
+                break;
+            // Add more states as needed
+        }
     }
     
     // Helper method to darken color for guidon bearer
