@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AFROTC Drill Simulator</title>
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        #gameContainer {
+            position: relative;
+        }
+        canvas {
+            border: 1px solid black;
+        }
+        #startScreen, #gameOverScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 550px;
+            height: 400px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            gap: 20px;
+        }
+        #gameOverScreen {
+            display: none;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        @media (prefers-color-scheme: dark) {
+            body { background: #333; color: white; }
+            canvas { border-color: white; }
+            button { background: #555; color: white; border: 1px solid white; }
+        }
+        @media (prefers-color-scheme: light) {
+            body { background: white; color: black; }
+            button { background: #ddd; color: black; border: 1px solid black; }
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="550" height="400"></canvas>
+        <div id="startScreen">
+            <button id="startButton">Start Drill</button>
+        </div>
+        <div id="gameOverScreen">
+            <span>Drill Failed - Hit Edge!</span>
+            <button id="restartButton">Restart Drill</button>
+        </div>
+        <button id="stopButton" style="display: none; position: absolute; bottom: -40px; left: 50%; transform: translateX(-50%);">Stop Drill</button>
+    </div>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const startScreen = document.getElementById('startScreen');
+        const gameOverScreen = document.getElementById('gameOverScreen');
+        const startButton = document.getElementById('startButton');
+        const restartButton = document.getElementById('restartButton');
+        const stopButton = document.getElementById('stopButton');
+        
+        const gridSize = 40;
+        const tileCountX = canvas.width / gridSize;  // 13.75, will floor to 13
+        const tileCountY = canvas.height / gridSize; // 10
+
+        let commander = {x: 6, y: 5, dx: 1, dy: 0};
+        let flight = [{x: 5, y: 5}, {x: 4, y: 5}];
+        let guidon = {x: Math.floor(Math.random() * tileCountX), y: Math.floor(Math.random() * tileCountY)};
+        let gameStarted = false;
+
+        function resetGame() {
+            commander = {x: 6, y: 5, dx: 1, dy: 0};
+            flight = [{x: 5, y: 5}, {x: 4, y: 5}];
+            guidon = {x: Math.floor(Math.random() * tileCountX), y: Math.floor(Math.random() * tileCountY)};
+            gameOverScreen.style.display = 'none';
+            stopButton.style.display = 'block';
+        }
+
+        function gameLoop() {
+            if (!gameStarted) return;
+
+            commander.x += commander.dx;
+            commander.y += commander.dy;
+
+            if (commander.x < 0 || commander.x >= tileCountX || commander.y < 0 || commander.y >= tileCountY) {
+                gameStarted = false;
+                gameOverScreen.style.display = 'flex';
+                stopButton.style.display = 'none';
+                return;
+            }
+
+            flight.unshift({x: commander.x, y: commander.y});
+            flight.pop();
+
+            ctx.fillStyle = window.matchMedia('(prefers-color-scheme: dark)').matches ? '#333' : 'white';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = 'blue';
+            flight.forEach(member => {
+                ctx.fillRect(member.x * gridSize, member.y * gridSize, gridSize - 2, gridSize - 2);
+            });
+
+            ctx.fillStyle = 'red';
+            ctx.fillRect(commander.x * gridSize, commander.y * gridSize, gridSize - 2, gridSize - 2);
+
+            ctx.fillStyle = 'yellow';
+            ctx.fillRect(guidon.x * gridSize, guidon.y * gridSize, gridSize - 2, gridSize - 2);
+
+            setTimeout(gameLoop, 100);
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (!gameStarted) return;
+            switch(e.key) {
+                case 'ArrowUp': 
+                    if (commander.dy === 0) {commander.dx = 0; commander.dy = -1;}
+                    e.preventDefault();
+                    break;
+                case 'ArrowDown': 
+                    if (commander.dy === 0) {commander.dx = 0; commander.dy = 1;}
+                    e.preventDefault();
+                    break;
+                case 'ArrowLeft': 
+                    if (commander.dx === 0) {commander.dx = -1; commander.dy = 0;}
+                    e.preventDefault();
+                    break;
+                case 'ArrowRight': 
+                    if (commander.dx === 0) {commander.dx = 1; commander.dy = 0;}
+                    e.preventDefault();
+                    break;
+            }
+        });
+
+        startButton.addEventListener('click', () => {
+            gameStarted = true;
+            startScreen.style.display = 'none';
+            stopButton.style.display = 'block';
+            gameLoop();
+        });
+
+        restartButton.addEventListener('click', () => {
+            resetGame();
+            gameStarted = true;
+            gameLoop();
+        });
+
+        stopButton.addEventListener('click', () => {
+            gameStarted = false;
+            startScreen.style.display = 'flex';
+            stopButton.style.display = 'none';
+        });
+
+        ctx.fillStyle = window.matchMedia('(prefers-color-scheme: dark)').matches ? '#333' : 'white';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    </script>
+</body>
+</html>
