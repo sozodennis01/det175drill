@@ -12,7 +12,7 @@ class Game {
         this.gameEnded = false;
         this.timerSeconds = 180; // 3 minutes in seconds
         this.lastDirection = null;
-        this.moveSpeed = 20; // Higher number = slower movement
+        this.moveSpeed = 40; // Higher number = slower movement (doubled for half speed)
         this.isPaused = false;
         this.isPromptShowing = false;
         this.isRestartPrompt = false;
@@ -79,12 +79,23 @@ class Game {
         
         /**
          * Available commands:
-         * - fallIn
-         * - attention
-         * - paradeRest
-         * - rightFace
-         * - leftFace
-         * - aboutFace
+         * - 1: fallIn
+         * - 2: attention
+         * - 3: leftFace
+         * - 4: rightFace
+         * - 5: aboutFace
+         * - 6: paradeRest
+         * 
+         * Marching commands:
+         * - Z: halt
+         * - W: forwardMarch
+         * - A: columnLeft
+         * - D: columnRight
+         * - Q: leftFlank
+         * - E: rightFlank
+         * - S: toTheRear
+         * 
+         * Additional commands (not on keyboard):
          * - presentArms
          * - orderArms
          * - leftStep
@@ -92,14 +103,8 @@ class Game {
          * - cover
          * - markTime
          * - halfStep
-         * - forwardMarch
-         * - columnLeft
-         * - toTheRear
-         * - rightFlank
-         * - columnRight
          * - changeStep
-         * - leftFlank
-         * - halt
+         * - doubletime
          */
         
         // Setup canvas
@@ -788,63 +793,54 @@ class Game {
                 this.interactWithEvaluator();
                 break;
                 
-            // Command keys
+            // Command keys - numeric keys for basic commands
+            case '1':
+                this.issueCommand("fallIn");
+                break;
+            case '2':
+                this.issueCommand("attention");
+                break;
+            case '3':
+                this.issueCommand("leftFace");
+                break;
+            case '4':
+                this.issueCommand("rightFace");
+                break;
+            case '5':
+                this.issueCommand("aboutFace");
+                break;
+            case '6':
+                this.issueCommand("paradeRest");
+                break;
+                
+            // Movement and marching commands - WASD + QE + Z
             case 'z':
             case 'Z':
-                this.issueCommand("fallIn");
+                this.issueCommand("halt");
+                break;
+            case 'w':
+            case 'W':
+                this.issueCommand("forwardMarch");
                 break;
             case 'a':
             case 'A':
-                this.issueCommand("attention");
-                break;
-            case 'p':
-            case 'P':
-                this.issueCommand("paradeRest");
-                break;
-            case 'r':
-            case 'R':
-                this.issueCommand("rightFace");
-                break;
-            case 'l':
-            case 'L':
-                this.issueCommand("leftFace");
-                break;
-            case 'b':
-            case 'B':
-                this.issueCommand("aboutFace");
-                break;
-            case 'm':
-            case 'M':
-                this.issueCommand("forwardMarch");
-                break;
-            case 'h':
-            case 'H':
-                this.issueCommand("halt");
-                break;
-            case 'c':
-            case 'C':
-                // Hold Shift for Column Right
-                if (e.shiftKey) {
-                    this.issueCommand("columnRight");
-                } else {
-                    this.issueCommand("columnLeft");
-                }
-                break;
-            case 'k':
-            case 'K':
-                // Hold Shift for Right Flank
-                if (e.shiftKey) {
-                    this.issueCommand("rightFlank");
-                } else {
-                    this.issueCommand("leftFlank");
-                }
+                this.issueCommand("columnLeft");
                 break;
             case 'd':
             case 'D':
-                // Double time command
-                this.issueCommand("doubletime");
-                // Toggle double time state
-                this.isDoubleTime = !this.isDoubleTime;
+                this.issueCommand("columnRight");
+                break;
+            case 'q':
+            case 'Q':
+                this.issueCommand("leftFlank");
+                break;
+            case 'e':
+            case 'E':
+                this.issueCommand("rightFlank");
+                break;
+            case 's':
+            case 'S':
+                this.issueCommand("toTheRear");
                 break;
             // Add more command keys as needed
         }
@@ -959,9 +955,8 @@ class Game {
                                 break;
                             }
                             
-                            // Check for collision with evaluator or commander
-                            if ((newX === this.evaluator.x && newY === this.evaluator.y) ||
-                                (newX === this.commander.segments[0].x && newY === this.commander.segments[0].y)) {
+                            // Check for collision with evaluator only (commander now moves with flight)
+                            if (newX === this.evaluator.x && newY === this.evaluator.y) {
                                 hitBoundary = true;
                                 break;
                             }
@@ -972,6 +967,17 @@ class Game {
                             for (let cadet of this.flightOfCadets) {
                                 cadet.x += dx;
                                 cadet.y += dy;
+                            }
+                            
+                            // Also move the commander with the flight, maintaining the same relative position
+                            if (this.commander.segments.length > 0) {
+                                this.commander.segments[0].x += dx;
+                                this.commander.segments[0].y += dy;
+                                // Update commander's direction to match the movement
+                                if (dx > 0) this.commander.direction = "right";
+                                else if (dx < 0) this.commander.direction = "left";
+                                else if (dy > 0) this.commander.direction = "down";
+                                else if (dy < 0) this.commander.direction = "up";
                             }
                         } else {
                             // Provide feedback that the flight has hit a boundary
