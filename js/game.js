@@ -8,13 +8,15 @@ class Game {
         this.CANVAS_HEIGHT = 400;
         
         // Game state
-        this.score = 0;
         this.gameStarted = false;
         this.gameEnded = false;
-        this.returnToEvaluator = false;
+        this.timerSeconds = 180; // 3 minutes in seconds
         this.lastDirection = null;
         this.moveTimer = 0;
         this.moveSpeed = 20; // Higher number = slower movement
+        this.isPaused = false;
+        this.isPromptShowing = false;
+        this.isRestartPrompt = false;
         
         // Setup canvas
         this.canvas = document.getElementById('game-canvas');
@@ -25,12 +27,12 @@ class Game {
         this.messageText = document.getElementById('message-text');
         this.messageButton = document.getElementById('message-button');
         this.scoreDisplay = document.getElementById('score-display');
+        this.scoreDisplay.textContent = this.formatTime(this.timerSeconds);
         
         // Game entities
         this.commander = new Commander(6, 5, "right");
         this.evaluator = new Evaluator(0, 0);
         this.flightOfCadets = this.createCadetFormation();
-        this.point = null;
         
         // Bind methods
         this.handleKeyDown = this.handleKeyDown.bind(this);
@@ -41,7 +43,6 @@ class Game {
     }
     
     init() {
-        this.spawnPoint();
         this.setupEventListeners();
         this.gameLoop();
     }
@@ -70,59 +71,44 @@ class Game {
         return cadets;
     }
     
-    spawnPoint() {
-        let validPosition = false;
-        let newX, newY;
-        
-        while (!validPosition) {
-            newX = Math.floor(Math.random() * this.GRID_COLS);
-            newY = Math.floor(Math.random() * this.GRID_ROWS);
-            
-            // Check if position is free
-            validPosition = true;
-            
-            // Not on commander
-            for (let segment of this.commander.segments) {
-                if (segment.x === newX && segment.y === newY) {
-                    validPosition = false;
-                    break;
-                }
-            }
-            
-            // Not on evaluator
-            if (newX === this.evaluator.x && newY === this.evaluator.y) {
-                validPosition = false;
-            }
-            
-            // Not on flight of cadets
-            for (let cadet of this.flightOfCadets) {
-                if (newX === cadet.x && newY === cadet.y) {
-                    validPosition = false;
-                    break;
-                }
-            }
-        }
-        
-        this.point = { x: newX, y: newY };
-    }
-    
     gameLoop() {
-        if (!this.gameStarted || this.gameEnded) {
+        if (this.gameEnded || this.isPaused) {
             this.draw();
             requestAnimationFrame(() => this.gameLoop());
             return;
         }
         
-        // Control movement speed with timer
-        this.moveTimer++;
-        if (this.moveTimer >= this.moveSpeed) {
-            this.moveCommander();
-            this.moveTimer = 0;
-            this.checkCollisions();
+        // Update timer if game has started
+        if (this.gameStarted) {
+            if (this.timerSeconds > 0) {
+                if (this.frameCount % 60 === 0) { // Decrease timer every second (assuming 60 FPS)
+                    this.timerSeconds--;
+                    this.scoreDisplay.textContent = this.formatTime(this.timerSeconds);
+                    
+                    if (this.timerSeconds === 0) {
+                        this.endDrill();
+                    }
+                }
+                
+                this.frameCount++;
+            }
+
+            // Control movement speed with timer
+            this.moveTimer++;
+            if (this.moveTimer >= this.moveSpeed) {
+                this.moveCommander();
+                this.moveTimer = 0;
+            }
         }
         
         this.draw();
         requestAnimationFrame(() => this.gameLoop());
+    }
+    
+    formatTime(seconds) {
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = seconds % 60;
+        return `Time: ${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
     }
     
     draw() {
@@ -138,11 +124,6 @@ class Game {
         // Draw cadets
         for (let cadet of this.flightOfCadets) {
             cadet.draw(this.ctx, this.CELL_SIZE);
-        }
-        
-        // Draw point
-        if (this.point && !this.gameEnded) {
-            this.drawPoint();
         }
         
         // Draw commander last (on top)
@@ -170,21 +151,11 @@ class Game {
         }
     }
     
-    drawPoint() {
-        this.ctx.fillStyle = "#ffcc00";
-        this.ctx.fillRect(
-            this.point.x * this.CELL_SIZE + 8, 
-            this.point.y * this.CELL_SIZE + 8, 
-            this.CELL_SIZE - 16, 
-            this.CELL_SIZE - 16
-        );
-    }
-    
     moveCommander() {
-        // Store the current head position
+        // Store the current position
         const head = this.commander.segments[0];
         
-        // Calculate new head position
+        // Calculate new position
         let newX = head.x;
         let newY = head.y;
         
@@ -203,11 +174,19 @@ class Game {
                 break;
         }
         
-        // Enforce boundaries
-        if (newX < 0) newX = 0;
-        if (newX >= this.GRID_COLS) newX = this.GRID_COLS - 1;
-        if (newY < 0) newY = 0;
-        if (newY >= this.GRID_ROWS) newY = this.GRID_ROWS - 1;
+        // Check for wall collisions if the game has started
+        if (this.gameStarted) {
+            if (newX < 0 || newX >= this.GRID_COLS || newY < 0 || newY >= this.GRID_ROWS) {
+                this.handleWallCollision();
+                return; // Don't move
+            }
+        } else {
+            // Just enforce boundaries without stopping the game when not started
+            if (newX < 0) newX = 0;
+            if (newX >= this.GRID_COLS) newX = this.GRID_COLS - 1;
+            if (newY < 0) newY = 0;
+            if (newY >= this.GRID_ROWS) newY = this.GRID_ROWS - 1;
+        }
         
         // Check for collision with evaluator
         if (newX === this.evaluator.x && newY === this.evaluator.y) {
@@ -221,41 +200,36 @@ class Game {
             }
         }
         
-        // Add new head position
-        this.commander.segments.unshift({ x: newX, y: newY });
-        
-        // Remove tail if we're not growing
-        if (this.commander.segments.length > this.score + 1) {
-            this.commander.segments.pop();
-        }
+        // Update commander position (maintaining just one segment)
+        this.commander.segments = [{ x: newX, y: newY }];
         
         // Save this direction
         this.lastDirection = this.commander.direction;
     }
     
-    checkCollisions() {
-        const head = this.commander.segments[0];
+    handleWallCollision() {
+        this.isPaused = true;
+        this.isRestartPrompt = true;
+        this.showMessage("You hit a boundary! Would you like to restart the drill? Press SPACE or click Continue to restart, or ESC to end drill.");
+    }
+    
+    restartGame() {
+        // Reset game state
+        this.gameStarted = false;
+        this.gameEnded = false;
+        this.isPaused = false;
+        this.isRestartPrompt = false;
+        this.timerSeconds = 180; // Reset timer to 3 minutes
+        this.frameCount = 0;
+        this.moveTimer = 0;
         
-        // Check for point collision
-        if (this.point && head.x === this.point.x && head.y === this.point.y) {
-            this.score++;
-            this.scoreDisplay.textContent = `Score: ${this.score}/10`;
-            
-            if (this.score === 10) {
-                this.returnToEvaluator = true;
-                this.showMessage("You've collected all 10 points! Return to the evaluator to complete the drill.");
-            } else {
-                this.spawnPoint();
-            }
-        }
+        // Reset commander position
+        this.commander = new Commander(6, 5, "right");
         
-        // Check for self-collision
-        for (let i = 1; i < this.commander.segments.length; i++) {
-            if (head.x === this.commander.segments[i].x && head.y === this.commander.segments[i].y) {
-                this.showMessage("Watch out! You're colliding with your formation.");
-                break;
-            }
-        }
+        // Update display
+        this.scoreDisplay.textContent = this.formatTime(this.timerSeconds);
+        
+        this.showMessage("Game restarted. Press F when adjacent to the evaluator to begin the drill.");
     }
     
     isAdjacentToEvaluator() {
@@ -286,33 +260,55 @@ class Game {
         if (!this.gameStarted) {
             // Start the drill
             this.gameStarted = true;
-            this.showMessage("Execute your drill freely. Collect 10 yellow points, then return to me. Use arrow keys to move.");
-        } else if (this.returnToEvaluator) {
-            // End the game
-            this.gameEnded = true;
-            let finalMessage = `Drill complete! Your score: ${this.score}/10.`;
-            
-            if (this.score === 10) {
-                finalMessage += " Perfect performance!";
-            }
-            
-            this.showMessage(finalMessage);
-        } else {
+            this.frameCount = 0; // Initialize frame counter for timing
+            this.showMessage("Execute your drill freely. You have 3 minutes to complete the exercise. Use arrow keys to move.");
+        } else if (!this.gameEnded) {
             // Still in progress
-            this.showMessage(`Continue the drill. Collect all 10 points first. Current score: ${this.score}/10`);
+            this.showMessage(`Continue the drill. You have ${this.formatTime(this.timerSeconds)} remaining.`);
         }
+    }
+    
+    endDrill() {
+        this.gameEnded = true;
+        this.showMessage("Time's up! Drill complete. Return to the evaluator for your assessment.");
     }
     
     showMessage(message) {
         this.messageText.textContent = message;
         this.messageBox.style.display = "block";
+        this.isPromptShowing = true;
     }
     
     closeMessage() {
         this.messageBox.style.display = "none";
+        this.isPromptShowing = false;
+        
+        // Handle restart if this was a restart prompt
+        if (this.isRestartPrompt) {
+            this.restartGame();
+        }
     }
     
     handleKeyDown(e) {
+        // If a prompt is showing, check for spacebar to continue
+        if (this.isPromptShowing && e.key === ' ') {
+            this.closeMessage();
+            return;
+        }
+        
+        // If a prompt is showing and it's a restart prompt, check for ESC to end
+        if (this.isPromptShowing && this.isRestartPrompt && e.key === 'Escape') {
+            this.isRestartPrompt = false;
+            this.closeMessage();
+            this.endDrill();
+            return;
+        }
+        
+        // Don't process movement keys if game is paused
+        if (this.isPaused) {
+            return;
+        }
+        
         switch (e.key) {
             case 'ArrowUp':
                 this.commander.direction = "up";
