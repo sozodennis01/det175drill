@@ -1,166 +1,548 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AFROTC Drill Simulator</title>
     <style>
         body {
-            margin: 0;
             display: flex;
-            justify-content: center;
+            flex-direction: column;
             align-items: center;
-            min-height: 100vh;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
         }
-        #gameContainer {
+        #game-container {
             position: relative;
         }
-        canvas {
-            border: 1px solid black;
+        #game-canvas {
+            border: 2px solid #333;
+            background-color: #fff;
         }
-        #startScreen, #gameOverScreen {
+        #score-display {
+            margin: 10px 0;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        #message-box {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 550px;
-            height: 400px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            flex-direction: column;
-            gap: 20px;
-        }
-        #gameOverScreen {
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(255, 255, 255, 0.9);
+            border: 2px solid #333;
+            padding: 20px;
+            border-radius: 5px;
+            text-align: center;
             display: none;
+            z-index: 10;
+            max-width: 80%;
         }
-        button {
-            padding: 10px 20px;
+        #message-text {
+            margin-bottom: 15px;
             font-size: 16px;
+        }
+        #message-button {
+            padding: 8px 16px;
+            background-color: #0066cc;
+            color: white;
+            border: none;
+            border-radius: 4px;
             cursor: pointer;
         }
-        @media (prefers-color-scheme: dark) {
-            body { background: #333; color: white; }
-            canvas { border-color: white; }
-            button { background: #555; color: white; border: 1px solid white; }
-        }
-        @media (prefers-color-scheme: light) {
-            body { background: white; color: black; }
-            button { background: #ddd; color: black; border: 1px solid black; }
+        #instructions {
+            margin-top: 20px;
+            text-align: center;
+            max-width: 550px;
         }
     </style>
 </head>
 <body>
-    <div id="gameContainer">
-        <canvas id="gameCanvas" width="550" height="400"></canvas>
-        <div id="startScreen">
-            <button id="startButton">Start Drill</button>
+    <h1>AFROTC Drill Simulator</h1>
+    <div id="score-display">Score: 0/10</div>
+    <div id="game-container">
+        <canvas id="game-canvas" width="550" height="400"></canvas>
+        <div id="message-box">
+            <p id="message-text"></p>
+            <button id="message-button">Continue</button>
         </div>
-        <div id="gameOverScreen">
-            <span>Drill Failed - Hit Edge!</span>
-            <button id="restartButton">Restart Drill</button>
-        </div>
-        <button id="stopButton" style="display: none; position: absolute; bottom: -40px; left: 50%; transform: translateX(-50%);">Stop Drill</button>
     </div>
+    <div id="instructions">
+        <p>Use arrow keys to move. Press F to interact with the evaluator (blue square). Collect all yellow points and return to the evaluator.</p>
+    </div>
+
     <script>
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        const startScreen = document.getElementById('startScreen');
-        const gameOverScreen = document.getElementById('gameOverScreen');
-        const startButton = document.getElementById('startButton');
-        const restartButton = document.getElementById('restartButton');
-        const stopButton = document.getElementById('stopButton');
+        // Game Constants and Variables
+        const GRID_COLS = 13;
+        const GRID_ROWS = 10;
+        const CELL_SIZE = 40;
+        const CANVAS_WIDTH = 550;
+        const CANVAS_HEIGHT = 400;
         
-        const gridSize = 40;
-        const tileCountX = canvas.width / gridSize;  // 13.75, will floor to 13
-        const tileCountY = canvas.height / gridSize; // 10
-
-        let commander = {x: 6, y: 5, dx: 1, dy: 0};
-        let flight = [{x: 5, y: 5}, {x: 4, y: 5}];
-        let guidon = {x: Math.floor(Math.random() * tileCountX), y: Math.floor(Math.random() * tileCountY)};
-        let gameStarted = false;
-
-        function resetGame() {
-            commander = {x: 6, y: 5, dx: 1, dy: 0};
-            flight = [{x: 5, y: 5}, {x: 4, y: 5}];
-            guidon = {x: Math.floor(Math.random() * tileCountX), y: Math.floor(Math.random() * tileCountY)};
-            gameOverScreen.style.display = 'none';
-            stopButton.style.display = 'block';
+        // Game elements
+        let commander = {
+            x: 6,
+            y: 5,
+            direction: "right",
+            segments: []
+        };
+        
+        const evaluator = {
+            x: 10,
+            y: 2
+        };
+        
+        // Flight of cadets
+        const flightOfCadets = [];
+        // Create 3x4 formation
+        for (let row = 0; row < 4; row++) {
+            for (let col = 0; col < 3; col++) {
+                flightOfCadets.push({
+                    x: GRID_COLS - 4 + col,
+                    y: GRID_ROWS - 5 + row
+                });
+            }
         }
-
+        
+        // Add guidon bearer in front of the formation
+        flightOfCadets.push({
+            x: GRID_COLS - 3,  // Centered in front of the formation
+            y: GRID_ROWS - 6,  // One row ahead of the formation
+            isGuidon: true     // Mark as guidon bearer
+        });
+        
+        let point = null;
+        let score = 0;
+        let gameStarted = false;
+        let gameEnded = false;
+        let returnToEvaluator = false;
+        let lastDirection = null;
+        let moveTimer = 0;
+        let moveSpeed = 10; // Higher number = slower movement (frames between moves)
+        
+        // Initialize Canvas
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Message Box Elements
+        const messageBox = document.getElementById('message-box');
+        const messageText = document.getElementById('message-text');
+        const messageButton = document.getElementById('message-button');
+        
+        // Score Display
+        const scoreDisplay = document.getElementById('score-display');
+        
+        // Game Initialization
+        function init() {
+            commander.segments = [{ x: commander.x, y: commander.y }];
+            spawnPoint();
+            drawGame();
+            setupEventListeners();
+        }
+        
+        // Spawn a new point at a random available position
+        function spawnPoint() {
+            let validPosition = false;
+            let newX, newY;
+            
+            while (!validPosition) {
+                newX = Math.floor(Math.random() * GRID_COLS);
+                newY = Math.floor(Math.random() * GRID_ROWS);
+                
+                // Check if position is free
+                validPosition = true;
+                
+                // Not on commander
+                for (let segment of commander.segments) {
+                    if (segment.x === newX && segment.y === newY) {
+                        validPosition = false;
+                        break;
+                    }
+                }
+                
+                // Not on evaluator
+                if (newX === evaluator.x && newY === evaluator.y) {
+                    validPosition = false;
+                }
+                
+                // Not on flight of cadets
+                for (let cadet of flightOfCadets) {
+                    if (newX === cadet.x && newY === cadet.y) {
+                        validPosition = false;
+                        break;
+                    }
+                }
+            }
+            
+            point = { x: newX, y: newY };
+        }
+        
+        // Draw game elements
+        function drawGame() {
+            // Clear canvas
+            ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+            
+            // Draw grid lines (faint)
+            ctx.strokeStyle = "#ddd";
+            ctx.lineWidth = 1;
+            
+            // Vertical lines
+            for (let x = 0; x <= GRID_COLS; x++) {
+                ctx.beginPath();
+                ctx.moveTo(x * CELL_SIZE, 0);
+                ctx.lineTo(x * CELL_SIZE, CANVAS_HEIGHT);
+                ctx.stroke();
+            }
+            
+            // Horizontal lines
+            for (let y = 0; y <= GRID_ROWS; y++) {
+                ctx.beginPath();
+                ctx.moveTo(0, y * CELL_SIZE);
+                ctx.lineTo(CANVAS_WIDTH, y * CELL_SIZE);
+                ctx.stroke();
+            }
+            
+            // Draw commander and segments (snake body)
+            ctx.fillStyle = "#3366cc";
+            for (let i = commander.segments.length - 1; i >= 0; i--) {
+                const segment = commander.segments[i];
+                
+                // Only draw the head as an arrow, remaining segments as rectangles
+                if (i === 0) {
+                    // Draw head as an arrow
+                    const x = segment.x * CELL_SIZE;
+                    const y = segment.y * CELL_SIZE;
+                    const centerX = x + CELL_SIZE / 2;
+                    const centerY = y + CELL_SIZE / 2;
+                    
+                    ctx.fillStyle = "#0066cc";
+                    ctx.save();
+                    ctx.translate(centerX, centerY);
+                    
+                    // Rotate based on direction
+                    switch (commander.direction) {
+                        case "up":
+                            ctx.rotate(0);
+                            break;
+                        case "right":
+                            ctx.rotate(Math.PI / 2);
+                            break;
+                        case "down":
+                            ctx.rotate(Math.PI);
+                            break;
+                        case "left":
+                            ctx.rotate(-Math.PI / 2);
+                            break;
+                    }
+                    
+                    // Draw arrow
+                    ctx.beginPath();
+                    ctx.moveTo(0, -CELL_SIZE / 2 + 8); // Point
+                    ctx.lineTo(CELL_SIZE / 3 - 4, CELL_SIZE / 4 - 4); // Right corner
+                    ctx.lineTo(0, CELL_SIZE / 8); // Inset
+                    ctx.lineTo(-CELL_SIZE / 3 + 4, CELL_SIZE / 4 - 4); // Left corner
+                    ctx.closePath();
+                    ctx.fill();
+                    
+                    ctx.restore();
+                } else {
+                    // Draw body segments as rectangles
+                    ctx.fillStyle = "#3366cc";
+                    ctx.fillRect(
+                        segment.x * CELL_SIZE + 12, 
+                        segment.y * CELL_SIZE + 12, 
+                        CELL_SIZE - 24, 
+                        CELL_SIZE - 24
+                    );
+                }
+            }
+            
+            // Draw evaluator (blue square)
+            ctx.fillStyle = "#0099ff";
+            ctx.fillRect(
+                evaluator.x * CELL_SIZE + 4, 
+                evaluator.y * CELL_SIZE + 4, 
+                CELL_SIZE - 8, 
+                CELL_SIZE - 8
+            );
+            
+            // Draw "E" letter on evaluator
+            ctx.fillStyle = "#ffffff";
+            ctx.font = "24px Arial";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(
+                "E", 
+                evaluator.x * CELL_SIZE + CELL_SIZE / 2, 
+                evaluator.y * CELL_SIZE + CELL_SIZE / 2
+            );
+            
+            // Draw flight of cadets
+            ctx.fillStyle = "#005599"; // Darker blue for cadets
+            flightOfCadets.forEach((cadet, index) => {
+                // Check if this is the guidon bearer
+                if (cadet.isGuidon) {
+                    // Draw guidon bearer with flag
+                    const x = cadet.x * CELL_SIZE;
+                    const y = cadet.y * CELL_SIZE;
+                    const centerX = x + CELL_SIZE / 2;
+                    const centerY = y + CELL_SIZE / 2;
+                    
+                    // Draw cadet (slightly larger)
+                    ctx.fillStyle = "#003366"; // Darker blue for guidon bearer
+                    ctx.fillRect(
+                        x + 8, 
+                        y + 8, 
+                        CELL_SIZE - 16, 
+                        CELL_SIZE - 16
+                    );
+                    
+                    // Draw guidon (flag)
+                    ctx.fillStyle = "#FF0000"; // Red for guidon
+                    // Flag pole
+                    ctx.fillRect(
+                        centerX - 1,
+                        y + 5,
+                        2,
+                        CELL_SIZE - 10
+                    );
+                    // Flag
+                    ctx.beginPath();
+                    ctx.moveTo(centerX, y + 5);
+                    ctx.lineTo(centerX + 10, y + 8);
+                    ctx.lineTo(centerX + 10, y + 16);
+                    ctx.lineTo(centerX, y + 18);
+                    ctx.closePath();
+                    ctx.fill();
+                } else {
+                    // Draw regular cadet as a small square
+                    ctx.fillStyle = "#005599"; // Regular blue for cadets
+                    ctx.fillRect(
+                        cadet.x * CELL_SIZE + 10, 
+                        cadet.y * CELL_SIZE + 10, 
+                        CELL_SIZE - 20, 
+                        CELL_SIZE - 20
+                    );
+                }
+            });
+            
+            // Draw point (yellow box)
+            if (point && !gameEnded) {
+                ctx.fillStyle = "#ffcc00";
+                ctx.fillRect(
+                    point.x * CELL_SIZE + 8, 
+                    point.y * CELL_SIZE + 8, 
+                    CELL_SIZE - 16, 
+                    CELL_SIZE - 16
+                );
+            }
+        }
+        
+        // Game loop
         function gameLoop() {
-            if (!gameStarted) return;
-
-            commander.x += commander.dx;
-            commander.y += commander.dy;
-
-            if (commander.x < 0 || commander.x >= tileCountX || commander.y < 0 || commander.y >= tileCountY) {
-                gameStarted = false;
-                gameOverScreen.style.display = 'flex';
-                stopButton.style.display = 'none';
+            if (!gameStarted || gameEnded) {
+                drawGame();
+                requestAnimationFrame(gameLoop);
                 return;
             }
-
-            flight.unshift({x: commander.x, y: commander.y});
-            flight.pop();
-
-            ctx.fillStyle = window.matchMedia('(prefers-color-scheme: dark)').matches ? '#333' : 'white';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            ctx.fillStyle = 'blue';
-            flight.forEach(member => {
-                ctx.fillRect(member.x * gridSize, member.y * gridSize, gridSize - 2, gridSize - 2);
-            });
-
-            ctx.fillStyle = 'red';
-            ctx.fillRect(commander.x * gridSize, commander.y * gridSize, gridSize - 2, gridSize - 2);
-
-            ctx.fillStyle = 'yellow';
-            ctx.fillRect(guidon.x * gridSize, guidon.y * gridSize, gridSize - 2, gridSize - 2);
-
-            setTimeout(gameLoop, 100);
+            
+            // Control movement speed with timer
+            moveTimer++;
+            if (moveTimer >= moveSpeed) {
+                // Move commander
+                moveCommander();
+                moveTimer = 0; // Reset timer
+                
+                // Check for collisions
+                checkCollisions();
+            }
+            
+            // Draw everything
+            drawGame();
+            
+            // Continue the loop
+            requestAnimationFrame(gameLoop);
         }
-
-        document.addEventListener('keydown', (e) => {
-            if (!gameStarted) return;
-            switch(e.key) {
-                case 'ArrowUp': 
-                    if (commander.dy === 0) {commander.dx = 0; commander.dy = -1;}
-                    e.preventDefault();
+        
+        // Move the commander
+        function moveCommander() {
+            // Store the current head position
+            const head = commander.segments[0];
+            
+            // Calculate new head position
+            let newX = head.x;
+            let newY = head.y;
+            
+            switch (commander.direction) {
+                case "up":
+                    newY--;
                     break;
-                case 'ArrowDown': 
-                    if (commander.dy === 0) {commander.dx = 0; commander.dy = 1;}
-                    e.preventDefault();
+                case "down":
+                    newY++;
                     break;
-                case 'ArrowLeft': 
-                    if (commander.dx === 0) {commander.dx = -1; commander.dy = 0;}
-                    e.preventDefault();
+                case "left":
+                    newX--;
                     break;
-                case 'ArrowRight': 
-                    if (commander.dx === 0) {commander.dx = 1; commander.dy = 0;}
-                    e.preventDefault();
+                case "right":
+                    newX++;
                     break;
             }
-        });
-
-        startButton.addEventListener('click', () => {
-            gameStarted = true;
-            startScreen.style.display = 'none';
-            stopButton.style.display = 'block';
-            gameLoop();
-        });
-
-        restartButton.addEventListener('click', () => {
-            resetGame();
-            gameStarted = true;
-            gameLoop();
-        });
-
-        stopButton.addEventListener('click', () => {
-            gameStarted = false;
-            startScreen.style.display = 'flex';
-            stopButton.style.display = 'none';
-        });
-
-        ctx.fillStyle = window.matchMedia('(prefers-color-scheme: dark)').matches ? '#333' : 'white';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Enforce boundaries
+            if (newX < 0) newX = 0;
+            if (newX >= GRID_COLS) newX = GRID_COLS - 1;
+            if (newY < 0) newY = 0;
+            if (newY >= GRID_ROWS) newY = GRID_ROWS - 1;
+            
+            // Add new head position
+            commander.segments.unshift({ x: newX, y: newY });
+            
+            // Remove tail if we're not growing
+            if (commander.segments.length > score + 1) {
+                commander.segments.pop();
+            }
+            
+            // Save this direction
+            lastDirection = commander.direction;
+        }
+        
+        // Check for collisions
+        function checkCollisions() {
+            const head = commander.segments[0];
+            
+            // Check for point collision
+            if (point && head.x === point.x && head.y === point.y) {
+                score++;
+                scoreDisplay.textContent = `Score: ${score}/10`;
+                
+                if (score === 10) {
+                    returnToEvaluator = true;
+                    showMessage("You've collected all 10 points! Return to the evaluator to complete the drill.");
+                } else {
+                    spawnPoint();
+                }
+            }
+            
+            // Check for self-collision
+            for (let i = 1; i < commander.segments.length; i++) {
+                if (head.x === commander.segments[i].x && head.y === commander.segments[i].y) {
+                    // Self-collision doesn't end the game, just inform the player
+                    showMessage("Watch out! You're colliding with your formation.");
+                    break;
+                }
+            }
+        }
+        
+        // Check if commander is adjacent to evaluator
+        function isAdjacentToEvaluator() {
+            const head = commander.segments[0];
+            
+            // Check if commander is next to evaluator (including diagonals)
+            const adjacentPositions = [
+                { x: evaluator.x - 1, y: evaluator.y },     // Left
+                { x: evaluator.x + 1, y: evaluator.y },     // Right
+                { x: evaluator.x, y: evaluator.y - 1 },     // Up
+                { x: evaluator.x, y: evaluator.y + 1 },     // Down
+                { x: evaluator.x - 1, y: evaluator.y - 1 }, // Diagonal: Top-left
+                { x: evaluator.x + 1, y: evaluator.y - 1 }, // Diagonal: Top-right
+                { x: evaluator.x - 1, y: evaluator.y + 1 }, // Diagonal: Bottom-left
+                { x: evaluator.x + 1, y: evaluator.y + 1 }  // Diagonal: Bottom-right
+            ];
+            
+            for (let pos of adjacentPositions) {
+                if (head.x === pos.x && head.y === pos.y) {
+                    return true;
+                }
+            }
+            
+            return false;
+        }
+        
+        // Interact with evaluator
+        function interactWithEvaluator() {
+            if (!isAdjacentToEvaluator()) {
+                showMessage("You need to be adjacent to the evaluator to interact.");
+                return;
+            }
+            
+            if (!gameStarted) {
+                // Start the drill
+                gameStarted = true;
+                showMessage("Execute your drill freely. Collect 10 yellow points, then return to me. Use arrow keys to move.");
+            } else if (returnToEvaluator) {
+                // End the game
+                gameEnded = true;
+                let finalMessage = `Drill complete! Your score: ${score}/10.`;
+                
+                if (score === 10) {
+                    finalMessage += " Perfect performance!";
+                }
+                
+                showMessage(finalMessage);
+            } else {
+                // Still in progress
+                showMessage(`Continue the drill. Collect all 10 points first. Current score: ${score}/10`);
+            }
+        }
+        
+        // Show message box
+        function showMessage(message) {
+            messageText.textContent = message;
+            messageBox.style.display = "block";
+        }
+        
+        // Setup event listeners
+        function setupEventListeners() {
+            // Keyboard controls
+            document.addEventListener('keydown', function(e) {
+                // Handle arrow keys for movement even before game officially starts
+                switch (e.key) {
+                    case 'ArrowUp':
+                        if (lastDirection !== "down") {
+                            commander.direction = "up";
+                            if (!gameStarted) moveCommander();
+                        }
+                        break;
+                    case 'ArrowDown':
+                        if (lastDirection !== "up") {
+                            commander.direction = "down";
+                            if (!gameStarted) moveCommander();
+                        }
+                        break;
+                    case 'ArrowLeft':
+                        if (lastDirection !== "right") {
+                            commander.direction = "left";
+                            if (!gameStarted) moveCommander();
+                        }
+                        break;
+                    case 'ArrowRight':
+                        if (lastDirection !== "left") {
+                            commander.direction = "right";
+                            if (!gameStarted) moveCommander();
+                        }
+                        break;
+                    case 'f':
+                    case 'F':
+                        interactWithEvaluator();
+                        break;
+                }
+                
+                // Redraw the game after key press if game hasn't started
+                if (!gameStarted) drawGame();
+            });
+            
+            // Message box close button
+            messageButton.addEventListener('click', function() {
+                messageBox.style.display = "none";
+            });
+        }
+        
+        // Start the game
+        init();
+        gameLoop();
     </script>
 </body>
 </html>
