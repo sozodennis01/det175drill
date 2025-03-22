@@ -6,7 +6,7 @@ class Game {
         this.CELL_SIZE = 40;
         this.CANVAS_WIDTH = 550;
         this.CANVAS_HEIGHT = 400;
-        
+
         // Game state
         this.gameStarted = false;
         this.gameEnded = false;
@@ -18,14 +18,14 @@ class Game {
         this.isRestartPrompt = false;
         this.targetPositionReached = false; // Track if position was reached
         this.frameCount = 0; // Track frames for animation timing
-        
+
         // Formation state
         this.flightFormation = "none"; // Will be "line" or "column" after fallIn
-        
+
         // Flight state machine
         this.flightState = "none"; // Default state before FALL IN
         this.isDoubleTime = false; // Track if in double time marching
-        
+
         // State transitions definition
         this.validStateTransitions = {
             "none": ["Forming"],
@@ -39,7 +39,7 @@ class Game {
             "Flanking": ["Marching_Forward"],
             "Halted_In_Formation": ["Halted_In_Formation", "Halted_At_Attention", "Halted_At_Rest"]
         };
-        
+
         // Command to state mapping
         this.commandStateMap = {
             "fallIn": { from: ["none", "Halted_At_Rest"], to: "Halted_In_Formation" },
@@ -70,13 +70,13 @@ class Game {
             "cover": { from: ["Halted_At_Attention"], to: "Halted_At_Attention" },
             "doubletime": { from: ["Marching_Forward"], to: "Marching_Forward" }
         };
-        
+
         // Command state management
         this.currentCommand = "none";
         this.previousCommand = "none";
         this.commandHistory = [];
         this.commandFeedback = null; // For displaying feedback
-        
+
         /**
          * Available commands:
          * - 1: fallIn
@@ -106,11 +106,11 @@ class Game {
          * - changeStep
          * - doubletime
          */
-        
+
         // Setup canvas
         this.canvas = document.getElementById('game-canvas');
         this.ctx = this.canvas.getContext('2d');
-        
+
         // UI elements
         this.messageBox = document.getElementById('message-box');
         this.messageText = document.getElementById('message-text');
@@ -122,27 +122,27 @@ class Game {
             // Create the command display if it doesn't exist
             this.createCommandDisplay();
         }
-        
+
         // Game entities
         this.commander = new Commander(6, 5, "right");
         this.evaluator = new Evaluator(0, 0);
         this.flightOfCadets = this.createCadetFormation();
-        
+
         // Create target position (green circle)
         // Two spaces from left side of flight, one row from bottom of grid
         const leftmostFlightCol = this.GRID_COLS - 2; // Leftmost column of flight
         const targetX = leftmostFlightCol - 2; // Two spaces left of flight
         const targetY = this.GRID_ROWS - 2; // Two row from bottom
         this.targetPosition = new TargetPosition(targetX, targetY);
-        
+
         // Bind methods
         this.handleKeyDown = this.handleKeyDown.bind(this);
         this.closeMessage = this.closeMessage.bind(this);
-        
+
         // Initialize
         this.init();
     }
-    
+
     // Create command display UI
     createCommandDisplay() {
         // Create a new element for command display
@@ -158,74 +158,74 @@ class Game {
         this.commandDisplay.style.fontFamily = 'Arial, sans-serif';
         this.commandDisplay.style.zIndex = '1000';
         this.commandDisplay.style.minWidth = '200px';
-        
+
         // Create sections for current and previous commands
         const currentCommandSection = document.createElement('div');
         currentCommandSection.id = 'current-command';
         currentCommandSection.innerHTML = '<strong>Current Command:</strong> None';
-        
+
         const previousCommandSection = document.createElement('div');
         previousCommandSection.id = 'previous-command';
         previousCommandSection.innerHTML = '<strong>Previous Command:</strong> None';
-        
+
         const formationSection = document.createElement('div');
         formationSection.id = 'formation-status';
         formationSection.innerHTML = '<strong>Formation:</strong> None';
-        
+
         // Add flight state section
         const stateSection = document.createElement('div');
         stateSection.id = 'flight-state';
         stateSection.innerHTML = '<strong>Flight State:</strong> None';
-        
+
         const feedbackSection = document.createElement('div');
         feedbackSection.id = 'command-feedback';
         feedbackSection.innerHTML = '';
-        
+
         // Add sections to command display
         this.commandDisplay.appendChild(currentCommandSection);
         this.commandDisplay.appendChild(previousCommandSection);
         this.commandDisplay.appendChild(formationSection);
         this.commandDisplay.appendChild(stateSection);
         this.commandDisplay.appendChild(feedbackSection);
-        
+
         // Add command display to the document
         document.body.appendChild(this.commandDisplay);
     }
-    
+
     // Update command display UI
     updateCommandDisplay() {
         if (!this.commandDisplay) return;
-        
+
         // Format the command text nicely
         const formatCommand = (cmd) => {
             if (cmd === "none") return "None";
-            
+
             // Convert camelCase to Title Case With Spaces
             return cmd
                 .replace(/([A-Z])/g, ' $1') // Add space before capital letters
                 .replace(/^./, (str) => str.toUpperCase()); // Capitalize first letter
         };
-        
+
         // Update current command
         const currentCommandElement = document.getElementById('current-command');
         if (currentCommandElement) {
             currentCommandElement.innerHTML = `<strong>Current Command:</strong> ${formatCommand(this.currentCommand)}`;
         }
-        
+
         // Update previous command
         const previousCommandElement = document.getElementById('previous-command');
         if (previousCommandElement) {
             previousCommandElement.innerHTML = `<strong>Previous Command:</strong> ${formatCommand(this.previousCommand)}`;
         }
-        
+
         // Update formation status
         const formationElement = document.getElementById('formation-status');
         if (formationElement) {
-            const formationText = this.flightFormation === "none" ? "None" : 
-                                 this.flightFormation === "line" ? "Line Formation" : "Column Formation";
+            const formationText = this.flightFormation === "none" ? "None" :
+                this.flightFormation === "line" ? "Line Formation" : "Column Formation";
             formationElement.innerHTML = `<strong>Formation:</strong> ${formationText}`;
         }
-        
+
         // Update flight state
         const stateElement = document.getElementById('flight-state');
         if (stateElement) {
@@ -234,12 +234,12 @@ class Game {
             const stateColor = this.getStateColor(this.flightState);
             stateElement.innerHTML = `<strong>Flight State:</strong> <span style="color:${stateColor}">${formattedState}</span>`;
         }
-        
+
         // Update feedback if any
         const feedbackElement = document.getElementById('command-feedback');
         if (feedbackElement && this.commandFeedback) {
             feedbackElement.innerHTML = this.commandFeedback;
-            
+
             // Clear feedback after 3 seconds
             setTimeout(() => {
                 feedbackElement.innerHTML = '';
@@ -247,15 +247,15 @@ class Game {
             }, 3000);
         }
     }
-    
+
     init() {
         this.setupEventListeners();
         this.gameLoop();
     }
-    
+
     createCadetFormation() {
         const cadets = [];
-        
+
         // Create 3x4 formation
         for (let row = 0; row < 4; row++) {
             for (let col = 0; col < 3; col++) {
@@ -267,82 +267,82 @@ class Game {
                 ));
             }
         }
-        
-        // Add guidon bearer
+
+        // Guidon starts right of flight (line formation)
         cadets.push(new Cadet(
-            this.GRID_COLS - 2,  // Aligned with leftmost column
+            this.GRID_COLS - 2,  // Right of first element
             this.GRID_ROWS - 5,  // One row ahead of formation
             true,                // Is guidon bearer
             this                 // Pass reference to game
         ));
-        
+
         return cadets;
     }
-    
+
     gameLoop() {
         if (this.gameEnded || this.isPaused) {
             this.draw();
             requestAnimationFrame(() => this.gameLoop());
             return;
         }
-        
+
         // Update timer if game has started
         if (this.gameStarted) {
             if (this.timerSeconds > 0) {
                 if (this.frameCount % 60 === 0) { // Decrease timer every second (assuming 60 FPS)
                     this.timerSeconds--;
                     this.scoreDisplay.textContent = this.formatTime(this.timerSeconds);
-                    
+
                     if (this.timerSeconds === 0) {
                         this.endDrill();
                     }
                 }
-                
+
                 this.frameCount++;
             }
-            
+
             // Handle animation updates based on flight state
             this.updateFlightAnimations();
         }
-        
+
         this.draw();
         requestAnimationFrame(() => this.gameLoop());
     }
-    
+
     formatTime(seconds) {
         const minutes = Math.floor(seconds / 60);
         const remainingSeconds = seconds % 60;
         return `Time: ${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
     }
-    
+
     draw() {
         // Clear canvas
         this.ctx.clearRect(0, 0, this.CANVAS_WIDTH, this.CANVAS_HEIGHT);
-        
+
         // Draw grid
         this.drawGrid();
-        
+
         // Draw game elements
         this.evaluator.draw(this.ctx, this.CELL_SIZE);
-        
+
         // Draw cadets
         for (let cadet of this.flightOfCadets) {
             cadet.draw(this.ctx, this.CELL_SIZE);
         }
-        
+
         // Draw target position (green circle) only if not yet reached or FALL IN not yet issued
         if (!(this.targetPositionReached && this.currentCommand === "fallIn")) {
             this.targetPosition.draw(this.ctx, this.CELL_SIZE);
         }
-        
+
         // Draw commander last (on top)
         this.commander.draw(this.ctx, this.CELL_SIZE);
     }
-    
+
     drawGrid() {
         this.ctx.strokeStyle = "#ddd";
         this.ctx.lineWidth = 1;
-        
+
         // Vertical lines
         for (let x = 0; x <= this.GRID_COLS; x++) {
             this.ctx.beginPath();
@@ -350,7 +350,7 @@ class Game {
             this.ctx.lineTo(x * this.CELL_SIZE, this.CANVAS_HEIGHT);
             this.ctx.stroke();
         }
-        
+
         // Horizontal lines
         for (let y = 0; y <= this.GRID_ROWS; y++) {
             this.ctx.beginPath();
@@ -359,15 +359,15 @@ class Game {
             this.ctx.stroke();
         }
     }
-    
+
     moveCommander() {
         // Store the current position
         const head = this.commander.segments[0];
-        
+
         // Calculate new position
         let newX = head.x;
         let newY = head.y;
-        
+
         switch (this.commander.direction) {
             case "up":
                 newY--;
@@ -382,7 +382,7 @@ class Game {
                 newX++;
                 break;
         }
-        
+
         // Check for wall collisions if the game has started
         if (this.gameStarted) {
             if (newX < 0 || newX > this.GRID_COLS || newY < 0 || newY > this.GRID_ROWS) {
@@ -396,37 +396,37 @@ class Game {
             if (newY < 0) newY = 0;
             if (newY >= this.GRID_ROWS) newY = this.GRID_ROWS - 1;
         }
-        
+
         // Check for collision with evaluator
         if (newX === this.evaluator.x && newY === this.evaluator.y) {
             return; // Don't move
         }
-        
+
         // Check for collision with cadets
         for (let cadet of this.flightOfCadets) {
             if (newX === cadet.x && newY === cadet.y) {
                 return; // Don't move
             }
         }
-        
+
         // Update commander position (maintaining just one segment)
         this.commander.segments = [{ x: newX, y: newY }];
-        
+
         // Save this direction
         this.lastDirection = this.commander.direction;
-        
+
         // Check if commander is at target position and give feedback if game has started
         if (this.gameStarted && newX === this.targetPosition.x && newY === this.targetPosition.y) {
             this.handleTargetPositionReached();
         }
     }
-    
+
     handleWallCollision() {
         this.isPaused = true;
         this.isRestartPrompt = true;
         this.showMessage("You hit a boundary! Would you like to restart the drill? Press F or click Continue to restart, or ESC to end drill.");
     }
-    
+
     handleTargetPositionReached() {
         // Only show message once when position is reached
         if (!this.targetPositionReached) {
@@ -434,7 +434,7 @@ class Game {
             this.showMessage("You've reached the correct position! Now conduct your drill from here. Press 'Z' to issue the FALL IN command.");
         }
     }
-    
+
     restartGame() {
         // Reset game state
         this.gameStarted = false;
@@ -443,65 +443,65 @@ class Game {
         this.isRestartPrompt = false;
         this.targetPositionReached = false; // Reset target position flag
         this.frameCount = 0; // Reset frame counter
-        
+
         // Reset command state
         this.currentCommand = "none";
         this.previousCommand = "none";
         this.commandHistory = [];
         this.commandFeedback = null;
-        
+
         // Reset formation state
         this.flightFormation = "none";
-        
+
         // Reset flight state
         this.flightState = "none";
         this.isDoubleTime = false;
-        
+
         this.timerSeconds = 180; // Reset timer to 3 minutes
-        
+
         // Reset commander position
         this.commander = new Commander(6, 5, "right");
-        
+
         // Reset cadet formation
         this.flightOfCadets = this.createCadetFormation();
-        
+
         // Update display
         this.scoreDisplay.textContent = this.formatTime(this.timerSeconds);
         this.updateCommandDisplay();
-        
+
         this.showMessage("Game restarted. Press F when adjacent to the evaluator to begin the drill.");
     }
-    
+
     isAdjacentToEvaluator() {
         const head = this.commander.segments[0];
-        
+
         // Check if commander is next to evaluator (including diagonals)
         const adjacentPositions = [
             { x: this.evaluator.x + 1, y: this.evaluator.y },     // Right
             { x: this.evaluator.x, y: this.evaluator.y + 1 },     // Down
             { x: this.evaluator.x + 1, y: this.evaluator.y + 1 }  // Bottom-right
         ];
-        
+
         for (let pos of adjacentPositions) {
             if (head.x === pos.x && head.y === pos.y) {
                 return true;
             }
         }
-        
+
         return false;
     }
-    
+
     interactWithEvaluator() {
         if (!this.isAdjacentToEvaluator()) {
             this.showMessage("You need to be adjacent to the evaluator to interact.");
             return;
         }
-        
+
         if (!this.gameStarted) {
             // Start the drill
             this.gameStarted = true;
             this.frameCount = 0; // Initialize frame counter for timing
-            
+
             const helpMessage = "Execute your drill freely. You have 3 minutes to complete the exercise. Move to the green circle to take your position, then conduct the drill.\n\n" +
                 "FORMATION GUIDE:\n" +
                 "- After 'FALL IN', your flight will be in LINE formation (side-by-side)\n" +
@@ -509,7 +509,7 @@ class Game {
                 "- Use 'C' for Column Left and Shift+C for Column Right (maintains column formation)\n" +
                 "- Use 'K' for Left Flank and Shift+K for Right Flank (maintains current formation)\n\n" +
                 "Use arrow keys to move.";
-            
+
             this.showMessage(helpMessage);
         } else if (!this.gameEnded) {
             // Still in progress
@@ -517,46 +517,46 @@ class Game {
             this.showMessage(`Continue the drill. You have ${this.formatTime(this.timerSeconds)} remaining. Remember to move to the green circle position.`);
         }
     }
-    
+
     endDrill() {
         this.gameEnded = true;
         this.showMessage("Time's up! Drill complete. Return to the evaluator for your assessment.");
     }
-    
+
     showMessage(message) {
         this.messageText.textContent = message;
         this.messageBox.style.display = "block";
         this.isPromptShowing = true;
     }
-    
+
     closeMessage() {
         this.messageBox.style.display = "none";
         this.isPromptShowing = false;
-        
+
         // Handle restart if this was a restart prompt
         if (this.isRestartPrompt) {
             this.restartGame();
         }
     }
-    
+
     // Issue a command to the flight
     issueCommand(command) {
         // Check if commander is at the target position for initial commands
         const head = this.commander.segments[0];
         const atTargetPosition = (head.x === this.targetPosition.x && head.y === this.targetPosition.y);
-        
+
         // Validate command conditions
         if (!this.gameStarted) {
             this.showMessage("You must start the drill before issuing commands.");
             return false;
         }
-        
+
         // For the first command (FALL IN), require being at target position
         if (this.currentCommand === "none" && command === "fallIn" && !atTargetPosition) {
             this.showMessage("You must be at the marked position (green circle) to issue the FALL IN command.");
             return false;
         }
-        
+
         // For other commands, require FALL IN to be issued first
         if (this.currentCommand === "none" && command !== "fallIn") {
             this.showMessage("You must issue the FALL IN command before using other commands.");
@@ -570,7 +570,7 @@ class Game {
             this.updateCommandDisplay();
             return false;
         }
-        
+
         // Check if the current state allows this command
         if (!stateTransition.from.includes(this.flightState)) {
             // Invalid state transition
@@ -578,85 +578,82 @@ class Game {
             this.updateCommandDisplay();
             return false;
         }
-        
+
         // Store the current command in history before changing it
         if (this.currentCommand !== "none") {
             this.previousCommand = this.currentCommand;
             this.commandHistory.push(this.currentCommand);
         }
-        
+
         // Set the new command
         this.currentCommand = command;
-        
+
         // Update formation state based on command
         this.updateFormationState(command);
-        
+
         // Update flight state based on command
         this.updateFlightState(command);
-        
+
         // Apply command to all cadets
         for (let cadet of this.flightOfCadets) {
             cadet.applyCommand(command);
         }
-        
+
         // Set feedback message based on command
         this.setCommandFeedback(command);
-        
+
         // Update the command display
         this.updateCommandDisplay();
-        
+
         return true;
     }
-    
+
     // Update formation state based on command
     updateFormationState(command) {
-        // Initial formation state - FALL IN always creates a line formation
+        const guidon = this.flightOfCadets.find(cadet => cadet.isGuidon);
+        if (!guidon) return;
+
         if (command === "fallIn") {
             this.flightFormation = "line";
             return;
         }
-        
-        // Commands that change formation from line to column or vice versa
-        if (this.flightFormation === "line") {
-            // From line to column: right face or left face
-            if (command === "rightFace" || command === "leftFace") {
-                this.flightFormation = "column";
-            }
-        } else if (this.flightFormation === "column") {
-            // From column to line: right face or left face (again)
-            if (command === "rightFace" || command === "leftFace") {
-                this.flightFormation = "line";
-            }
+
+        if (this.flightFormation === "line" && command === "rightFace") {
+            this.flightFormation = "column";
+            guidon.x += 2; // move in front of 3rd element
+        } else if (this.flightFormation === "column" && this.flightState === "Halted_At_Attention" && command === "leftFace") {
+            this.flightFormation = "line";
+            guidon.x -= 2; // Right of flight
         }
-        
+
         // Column movements - these maintain column formation but change direction
         if (command === "columnLeft" || command === "columnRight") {
             // Ensure formation stays as column
             this.flightFormation = "column";
         }
-        
+
         // Flank movements - these maintain formation but change direction
         if (command === "rightFlank" || command === "leftFlank") {
             // These commands don't change the formation type
         }
-        
+
         // About face doesn't change formation type, just direction
     }
-    
+
     // Update flight state based on command
     updateFlightState(command) {
         const stateTransition = this.commandStateMap[command];
-        
+
         // Update to the immediate state
         this.flightState = stateTransition.to;
-        
+
         // Handle special commands that change marching speed
         if (command === "forwardMarch") {
             this.isDoubleTime = false; // Set to normal speed
         } else if (command === "doubletime") {
             this.isDoubleTime = true;  // Set to double time
         }
-        
+
         // For commands with temporary states that transition automatically
         if (stateTransition.then) {
             // In a real implementation, you would use a timer or animation completion callback
@@ -666,11 +663,11 @@ class Game {
             }, 1000); // Simulate a delay for the movement animation
         }
     }
-    
+
     // Set feedback for the current command
     setCommandFeedback(command) {
         let baseFeedback = "";
-        
+
         switch (command) {
             case "fallIn":
                 baseFeedback = "Flight, FALL IN!";
@@ -717,13 +714,13 @@ class Game {
                 baseFeedback = `Command: ${command} issued!`;
                 break;
         }
-        
+
         // Add state information to feedback
         let stateInfo = "";
         if (this.flightState) {
             stateInfo = `<span style="color:#99ccff">(${this.flightState.replace(/_/g, ' ')})</span>`;
         }
-        
+
         // Add formation information when appropriate
         if (command === "fallIn") {
             this.commandFeedback = `${baseFeedback} <span style="color:#99ccff">(Flight is now in Line Formation - ${this.flightState.replace(/_/g, ' ')})</span>`;
@@ -747,14 +744,14 @@ class Game {
             this.commandFeedback = `${baseFeedback} ${stateInfo}`;
         }
     }
-    
+
     handleKeyDown(e) {
         // If a prompt is showing, check for spacebar to continue
         if (this.isPromptShowing && (e.key === 'F' || e.key === 'f')) {
             this.closeMessage();
             return;
         }
-        
+
         // If a prompt is showing and it's a restart prompt, check for ESC to end
         if (this.isPromptShowing && this.isRestartPrompt && e.key === 'Escape') {
             this.isRestartPrompt = false;
@@ -762,12 +759,12 @@ class Game {
             this.endDrill();
             return;
         }
-        
+
         // Don't process movement keys if game is paused
         if (this.isPaused) {
             return;
         }
-        
+
         switch (e.key) {
             case 'ArrowUp':
                 this.commander.direction = "up";
@@ -792,7 +789,7 @@ class Game {
             case 'F':
                 this.interactWithEvaluator();
                 break;
-                
+
             // Command keys - numeric keys for basic commands
             case '1':
                 this.issueCommand("fallIn");
@@ -812,7 +809,7 @@ class Game {
             case '6':
                 this.issueCommand("paradeRest");
                 break;
-                
+
             // Movement and marching commands - WASD + QE + Z
             case 'z':
             case 'Z':
@@ -844,11 +841,11 @@ class Game {
                 break;
             // Add more command keys as needed
         }
-        
+
         // Redraw if game hasn't started
         if (!this.gameStarted) this.draw();
     }
-    
+
     performAboutFace() {
         // Implement about face (turn around)
         switch (this.commander.direction) {
@@ -866,18 +863,18 @@ class Game {
                 break;
         }
     }
-    
+
     setupEventListeners() {
         // Keyboard controls
         document.addEventListener('keydown', this.handleKeyDown);
-        
+
         // Message box close button
         this.messageButton.addEventListener('click', this.closeMessage);
     }
-    
+
     // Helper method to get color for different states
     getStateColor(state) {
-        switch(state) {
+        switch (state) {
             case "Halted_At_Attention":
                 return "#00cc66"; // Green
             case "Halted_At_Rest":
@@ -900,7 +897,7 @@ class Game {
                 return "#ffffff"; // White
         }
     }
-    
+
     // Update animations based on flight state
     updateFlightAnimations() {
         // Different animation behavior based on current state
@@ -909,17 +906,27 @@ class Game {
                 // Only move cadets every few frames to control march speed
                 if (this.frameCount % this.moveSpeed === 0) {
                     // Move cadets forward based on current command
-                    if (this.currentCommand === "forwardMarch" || 
-                        this.currentCommand === "columnLeft" || 
+                    if (this.currentCommand === "forwardMarch" ||
+                        this.currentCommand === "columnLeft" ||
                         this.currentCommand === "columnRight" ||
                         this.currentCommand === "leftFlank" ||
                         this.currentCommand === "rightFlank") {
-                        
+
                         // Get movement direction based on guidon bearer's direction
                         // (guidon bearer is the leader of the formation)
                         const guidon = this.flightOfCadets.find(cadet => cadet.isGuidon);
                         if (!guidon) return;
-                        
+
+                        if (this.flightState === "Facing" && guidon) {
+                            if (this.flightFormation === "column" && guidon.y !== this.GRID_ROWS - 6) {
+                                //guidon.x = this.GRID_COLS - 2;
+                                guidon.y = this.GRID_ROWS - 6; // Snap to 40 inches ahead
+                            } else if (this.flightFormation === "line" && guidon.x !== this.GRID_COLS - 1) {
+                                //guidon.x = this.GRID_COLS - 1;
+                                guidon.y = this.GRID_ROWS - 5; // Snap to right
+                            }
+                        }
+
                         // Calculate movement delta
                         let dx = 0, dy = 0;
                         switch (guidon.direction) {
@@ -936,39 +943,41 @@ class Game {
                                 dy = 1;
                                 break;
                         }
-                        
+
+
+
                         // Apply double time speed if enabled
                         if (this.isDoubleTime) {
-                            dx *= 2;
-                            dy *= 2;
+                            dx *= 1.5;
+                            dy *= 1.5;
                         }
-                        
+
                         // Check if any cadet would hit a boundary
                         let hitBoundary = false;
                         for (let cadet of this.flightOfCadets) {
                             const newX = cadet.x + dx;
                             const newY = cadet.y + dy;
-                            
+
                             // Check for wall collisions
                             if (newX < 0 || newX > this.GRID_COLS || newY < 0 || newY > this.GRID_ROWS) {
                                 hitBoundary = true;
                                 break;
                             }
-                            
+
                             // Check for collision with evaluator only (commander now moves with flight)
                             if (newX === this.evaluator.x && newY === this.evaluator.y) {
                                 hitBoundary = true;
                                 break;
                             }
                         }
-                        
+
                         // Move all cadets if no boundary collision
                         if (!hitBoundary) {
                             for (let cadet of this.flightOfCadets) {
                                 cadet.x += dx;
                                 cadet.y += dy;
                             }
-                            
+
                             // Also move the commander with the flight, maintaining the same relative position
                             if (this.commander.segments.length > 0) {
                                 this.commander.segments[0].x += dx;
@@ -987,25 +996,25 @@ class Game {
                     }
                 }
                 break;
-                
+
             case "Halted_At_Rest":
                 // No movement, just stance visuals
                 break;
-                
+
             case "Halted_At_Attention":
                 // No movement, just stance visuals
                 break;
-                
+
             // Handle other states that need animation
             case "Facing":
                 // Temporarily animate rotation
                 break;
-                
+
             case "Column_Movement":
                 // Animate column movement
                 // This state is temporary and transitions to Marching_Forward
                 break;
-                
+
             case "Flanking":
                 // Animate flanking movement
                 // This state is temporary and transitions to Marching_Forward

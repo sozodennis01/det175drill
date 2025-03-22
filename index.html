@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -12,6 +13,7 @@
             gap: 10px;
             margin-top: 10px;
         }
+
         .command-item {
             background-color: #f0f0f0;
             padding: 5px 10px;
@@ -20,6 +22,7 @@
             display: flex;
             align-items: center;
         }
+
         .key {
             font-weight: bold;
             background-color: #333;
@@ -28,15 +31,18 @@
             border-radius: 3px;
             margin-right: 5px;
         }
+
         #game-container {
             position: relative;
         }
+
         #instructions {
             max-width: 550px;
             margin: 0 auto;
         }
     </style>
 </head>
+
 <body>
     <h1>AFROTC Drill Simulator</h1>
     <div id="score-display">Time: 3:00</div>
@@ -48,8 +54,10 @@
         </div>
     </div>
     <div id="instructions">
-        <p>Use arrow keys to move. Press F to interact with the evaluator (blue square) and answer prompts. Press SPACEBAR to turn around (about face). After speaking with the evaluator, move to the green circle to take your position. Complete the drill within the 3-minute time limit and avoid hitting boundaries.</p>
-        
+        <p>Use arrow keys to move. Press F to interact with the evaluator (blue square) and answer prompts. Press
+            SPACEBAR to turn around (about face). After speaking with the evaluator, move to the green circle to take
+            your position. Complete the drill within the 3-minute time limit and avoid hitting boundaries.</p>
+
         <h3>Available Commands:</h3>
         <div class="command-list">
             <div class="command-item"><span class="key">1</span> Fall In</div>
@@ -58,7 +66,7 @@
             <div class="command-item"><span class="key">4</span> Right Face</div>
             <div class="command-item"><span class="key">5</span> About Face</div>
             <div class="command-item"><span class="key">6</span> Parade Rest</div>
-            
+
             <div class="command-item"><span class="key">Z</span> Halt</div>
             <div class="command-item"><span class="key">W</span> Forward March</div>
             <div class="command-item"><span class="key">A</span> Column Left</div>
@@ -67,8 +75,9 @@
             <div class="command-item"><span class="key">E</span> Right Flank</div>
             <div class="command-item"><span class="key">S</span> To The Rear March</div>
         </div>
-        
-        <p><strong>Note:</strong> Commands will be visible in the top-right of the screen. You must issue the FALL IN command first before using other commands.</p>
+
+        <p><strong>Note:</strong> Commands will be visible in the top-right of the screen. You must issue the FALL IN
+            command first before using other commands.</p>
     </div>
 
     <!-- Load entity classes first -->
@@ -76,4 +85,5 @@
     <!-- Load main game class -->
     <script src="js/game.js"></script>
 </body>
+
 </html>
