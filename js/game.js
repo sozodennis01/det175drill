@@ -14,7 +14,7 @@ class Game {
         this.returnToEvaluator = false;
         this.lastDirection = null;
         this.moveTimer = 0;
-        this.moveSpeed = 10; // Higher number = slower movement
+        this.moveSpeed = 20; // Higher number = slower movement
         
         // Setup canvas
         this.canvas = document.getElementById('game-canvas');
@@ -28,7 +28,7 @@ class Game {
         
         // Game entities
         this.commander = new Commander(6, 5, "right");
-        this.evaluator = new Evaluator(10, 2);
+        this.evaluator = new Evaluator(0, 0);
         this.flightOfCadets = this.createCadetFormation();
         this.point = null;
         
@@ -263,13 +263,8 @@ class Game {
         
         // Check if commander is next to evaluator (including diagonals)
         const adjacentPositions = [
-            { x: this.evaluator.x - 1, y: this.evaluator.y },     // Left
             { x: this.evaluator.x + 1, y: this.evaluator.y },     // Right
-            { x: this.evaluator.x, y: this.evaluator.y - 1 },     // Up
             { x: this.evaluator.x, y: this.evaluator.y + 1 },     // Down
-            { x: this.evaluator.x - 1, y: this.evaluator.y - 1 }, // Top-left
-            { x: this.evaluator.x + 1, y: this.evaluator.y - 1 }, // Top-right
-            { x: this.evaluator.x - 1, y: this.evaluator.y + 1 }, // Bottom-left
             { x: this.evaluator.x + 1, y: this.evaluator.y + 1 }  // Bottom-right
         ];
         
