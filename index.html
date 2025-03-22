@@ -397,6 +397,26 @@
             if (newY < 0) newY = 0;
             if (newY >= GRID_ROWS) newY = GRID_ROWS - 1;
             
+            // Check for collision with evaluator
+            if (newX === evaluator.x && newY === evaluator.y) {
+                // Don't move if we would collide with evaluator
+                return;
+            }
+            
+            // Check for collision with cadets
+            let cadetCollision = false;
+            for (let cadet of flightOfCadets) {
+                if (newX === cadet.x && newY === cadet.y) {
+                    cadetCollision = true;
+                    break;
+                }
+            }
+            
+            if (cadetCollision) {
+                // Don't move if we would collide with a cadet
+                return;
+            }
+            
             // Add new head position
             commander.segments.unshift({ x: newX, y: newY });
             
