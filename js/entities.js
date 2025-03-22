@@ -91,6 +91,7 @@ class Cadet {
         this.x = x;
         this.y = y;
         this.isGuidon = isGuidon;
+        this.direction = "left"; // All cadets initially face left
     }
     
     draw(ctx, cellSize) {
@@ -99,45 +100,48 @@ class Cadet {
         const centerX = x + cellSize / 2;
         const centerY = y + cellSize / 2;
         
+        // Set color based on cadet type
+        ctx.fillStyle = this.isGuidon ? "#003366" : "#005599"; // Darker blue for guidon bearer
+        
+        ctx.save();
+        ctx.translate(centerX, centerY);
+        
+        // All cadets initially face left
+        ctx.rotate(-Math.PI / 2);
+        
+        // Draw arrow (same as commander)
+        ctx.beginPath();
+        ctx.moveTo(0, -cellSize / 2 + 8); // Point
+        ctx.lineTo(cellSize / 3 - 4, cellSize / 4 - 4); // Right corner
+        ctx.lineTo(0, cellSize / 8); // Inset
+        ctx.lineTo(-cellSize / 3 + 4, cellSize / 4 - 4); // Left corner
+        ctx.closePath();
+        ctx.fill();
+        
+        // If this is the guidon bearer, add the flag on top
         if (this.isGuidon) {
-            // Draw guidon bearer with flag
-            ctx.fillStyle = "#003366"; // Darker blue for guidon bearer
-            ctx.fillRect(
-                x + 8, 
-                y + 8, 
-                cellSize - 16, 
-                cellSize - 16
-            );
-            
             // Draw guidon (flag)
             ctx.fillStyle = "#FF0000"; // Red for guidon
             
             // Flag pole
             ctx.fillRect(
-                centerX - 1,
-                y + 5,
+                -1,
+                -cellSize / 2 + 5,
                 2,
                 cellSize - 10
             );
             
             // Flag
             ctx.beginPath();
-            ctx.moveTo(centerX, y + 5);
-            ctx.lineTo(centerX + 10, y + 8);
-            ctx.lineTo(centerX + 10, y + 16);
-            ctx.lineTo(centerX, y + 18);
+            ctx.moveTo(0, -cellSize / 2 + 5);
+            ctx.lineTo(10, -cellSize / 2 + 8);
+            ctx.lineTo(10, -cellSize / 2 + 16);
+            ctx.lineTo(0, -cellSize / 2 + 18);
             ctx.closePath();
             ctx.fill();
-        } else {
-            // Draw regular cadet as a small square
-            ctx.fillStyle = "#005599"; // Regular blue for cadets
-            ctx.fillRect(
-                x + 10, 
-                y + 10, 
-                cellSize - 20, 
-                cellSize - 20
-            );
         }
+        
+        ctx.restore();
     }
 }
 
